@@ -5,7 +5,6 @@ import {
   Building2,
   CalendarDays,
   CreditCard,
-  Dumbbell,
   FileText,
   Home,
   ListChecks,
@@ -66,12 +65,10 @@ export const menuByRole: Record<Role, MenuItem[]> = {
     { label: "Branch QR", path: "/staff/branch-qr", icon: FileText }
   ],
   Trainer: [
-    { label: "Dashboard", path: "/trainer/dashboard", icon: Home },
-    { label: "Schedule", path: "/trainer/today", icon: Activity },
-    { label: "My Classes", path: "/trainer/classes", icon: CalendarDays },
-    { label: "My Members", path: "/trainer/members", icon: Users },
-    { label: "Sessions", path: "/trainer/sessions", icon: Dumbbell },
-    { label: "Notes", path: "/trainer/notes", icon: FileText },
+    { label: "Today", path: "/trainer/today", icon: Activity },
+    { label: "Schedule", path: "/trainer/schedule", icon: CalendarDays },
+    { label: "Members", path: "/trainer/members", icon: Users },
+    { label: "Note", path: "/trainer/notes/new", icon: FileText },
     { label: "Profile", path: "/trainer/profile", icon: Settings }
   ],
   Member: []

@@ -33,12 +33,12 @@ import { RegisterMemberPage } from "../pages/staff/RegisterMemberPage";
 import { RenewMembershipPage } from "../pages/staff/RenewMembershipPage";
 import { StaffDashboard } from "../pages/staff/StaffDashboard";
 import { StaffPaymentsPage } from "../pages/staff/StaffPaymentsPage";
-import { TrainerClassesPage } from "../pages/trainer/TrainerClassesPage";
-import { TrainerDashboard } from "../pages/trainer/TrainerDashboard";
+import { TrainerMemberDetailPage } from "../pages/trainer/TrainerMemberDetailPage";
 import { TrainerMembersPage } from "../pages/trainer/TrainerMembersPage";
-import { TrainerNotesPage } from "../pages/trainer/TrainerNotesPage";
 import { TrainerProfilePage } from "../pages/trainer/TrainerProfilePage";
-import { TrainerSessionsPage } from "../pages/trainer/TrainerSessionsPage";
+import { TrainerQuickNotePage } from "../pages/trainer/TrainerQuickNotePage";
+import { TrainerSchedulePage } from "../pages/trainer/TrainerSchedulePage";
+import { TrainerSessionPage } from "../pages/trainer/TrainerSessionPage";
 import { TrainerTodayPage } from "../pages/trainer/TrainerTodayPage";
 import { NotFoundPage } from "../pages/shared/NotFoundPage";
 import { BranchQrPage } from "../pages/shared/BranchQrPage";
@@ -108,13 +108,18 @@ export function AppRoutes() {
             <Route path="/staff/branch-qr" element={<BranchQrPage />} />
           </Route>
           <Route element={<RoleGuard allowed={["Trainer"]} />}>
-            <Route path="/trainer/dashboard" element={<TrainerDashboard />} />
+            <Route path="/trainer" element={<Navigate to="/trainer/today" replace />} />
             <Route path="/trainer/today" element={<TrainerTodayPage />} />
-            <Route path="/trainer/classes" element={<TrainerClassesPage />} />
+            <Route path="/trainer/schedule" element={<TrainerSchedulePage />} />
             <Route path="/trainer/members" element={<TrainerMembersPage />} />
-            <Route path="/trainer/sessions" element={<TrainerSessionsPage />} />
-            <Route path="/trainer/notes" element={<TrainerNotesPage />} />
+            <Route path="/trainer/member/:memberId" element={<TrainerMemberDetailPage />} />
+            <Route path="/trainer/session/:sessionId" element={<TrainerSessionPage />} />
+            <Route path="/trainer/notes/new" element={<TrainerQuickNotePage />} />
             <Route path="/trainer/profile" element={<TrainerProfilePage />} />
+            <Route path="/trainer/dashboard" element={<Navigate to="/trainer/today" replace />} />
+            <Route path="/trainer/classes" element={<Navigate to="/trainer/schedule" replace />} />
+            <Route path="/trainer/sessions" element={<Navigate to="/trainer/schedule" replace />} />
+            <Route path="/trainer/notes" element={<Navigate to="/trainer/notes/new" replace />} />
           </Route>
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
