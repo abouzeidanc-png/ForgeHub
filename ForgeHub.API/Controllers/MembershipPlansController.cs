@@ -204,9 +204,24 @@ public class MembershipPlansController : ControllerBase
             return query.Where(item => item.GymId.HasValue && ownedGymIds.Contains(item.GymId.Value));
         }
 
-        return _currentUser.GymId.HasValue
-            ? query.Where(item => item.GymId == _currentUser.GymId.Value)
-            : query.Where(item => false);
+        if (!_currentUser.GymId.HasValue)
+        {
+            return query.Where(item => false);
+        }
+
+        query = query.Where(item => item.GymId == _currentUser.GymId.Value);
+
+        if ((_currentUser.IsInRole(AppRoles.BranchManager) || _currentUser.IsInRole(AppRoles.Staff)) &&
+            _currentUser.BranchId.HasValue)
+        {
+            var branchId = _currentUser.BranchId.Value;
+            query = query.Where(item =>
+                item.AccessType == "full-access" ||
+                item.AccessType == "DAY_PASS" ||
+                _context.MembershipPlanBranches.Any(link => link.MembershipPlanId == item.Id && link.BranchId == branchId));
+        }
+
+        return query;
     }
 
     private async Task<string?> ValidatePlanBranches(long gymId, string accessType, List<long>? requestedBranchIds)

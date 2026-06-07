@@ -1,5 +1,5 @@
 import { del, get, patch, post, put } from "./apiClient";
-import type { Member, MemberPersonalInfo } from "../types/member";
+import type { Member, MemberPersonalInfo, StaffMemberDetails } from "../types/member";
 
 export interface PagedMembers {
   items: Member[];
@@ -9,13 +9,19 @@ export interface PagedMembers {
   totalPages: number;
 }
 
+export interface CreateMemberPayload extends Partial<Member> {
+  password?: string;
+  joinDate?: string;
+}
+
 export const membersApi = {
   getMembers: (params?: Record<string, unknown>) => get<Member[]>("/members", params),
   getMembersPage: (params?: Record<string, unknown>) => get<PagedMembers>("/members", params),
   searchStaffMembers: (params?: Record<string, unknown>) => get<PagedMembers>("/staff/member-search", params),
+  getStaffMemberDetails: (id: number) => get<StaffMemberDetails>(`/staff/members/${id}`),
   searchMembers: (query: string) => get<Member[]>("/members", { query }),
   getMemberById: (id: number) => get<Member>(`/members/${id}`),
-  createMember: (data: Partial<Member>) => post<Member>("/members", data),
+  createMember: (data: CreateMemberPayload) => post<Member>("/members", data),
   updateMember: (id: number, data: Partial<Member>) => put<Member>(`/members/${id}`, data),
   getMemberPersonalInfo: (id: number) => get<MemberPersonalInfo>(`/members/${id}/personal-info`),
   updateMemberPersonalInfo: (id: number, data: Partial<MemberPersonalInfo>) => put<MemberPersonalInfo>(`/members/${id}/personal-info`, data),

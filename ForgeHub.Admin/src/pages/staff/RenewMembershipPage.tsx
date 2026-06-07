@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { checkInsApi } from "../../api/checkInsApi";
 import { dashboardApi } from "../../api/dashboardApi";
 import { membershipsApi } from "../../api/membershipsApi";
+import { membershipPlansApi } from "../../api/membershipPlansApi";
 import { paymentsApi } from "../../api/paymentsApi";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -31,6 +32,7 @@ function isExpiredOrExpiring(endDate?: string | null) {
 export function RenewMembershipPage() {
   const workspace = useApi(dashboardApi.getWorkspace, []);
   const memberships = useApi(membershipsApi.getExpiringMemberships, []);
+  const plansApi = useApi(membershipPlansApi.getPlans, []);
   const [memberId, setMemberId] = useState("");
   const [planId, setPlanId] = useState("");
   const [startDate, setStartDate] = useState(todayIso());
@@ -42,13 +44,19 @@ export function RenewMembershipPage() {
   const [error, setError] = useState("");
 
   const members = workspace.data?.members ?? [];
-  const plans = workspace.data?.plans ?? [];
+  const plans = plansApi.data ?? workspace.data?.plans ?? [];
   const selectedMember = members.find((member) => String(member.id) === memberId);
   const selectedPlan = plans.find((plan) => String(plan.id) === planId);
   const memberRows = useMemo(
     () => members.filter((member) => isExpiredOrExpiring(member.membershipEndDate)),
     [members]
   );
+
+  function updatePlan(nextPlanId: string) {
+    setPlanId(nextPlanId);
+    const plan = plans.find((item) => String(item.id) === nextPlanId);
+    setPaymentAmount(typeof plan?.price === "number" && plan.price > 0 ? String(plan.price) : "");
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,19 +69,28 @@ export function RenewMembershipPage() {
         throw new Error("Select a member and membership plan.");
       }
 
+      const amount = paymentAmount === "" ? undefined : Number(paymentAmount);
+      const planPrice = typeof selectedPlan?.price === "number" ? selectedPlan.price : 0;
+      if (amount !== undefined && (!Number.isFinite(amount) || amount < 0)) {
+        throw new Error("Renewal payment amount must be numeric and not negative.");
+      }
+      if (amount !== undefined && planPrice > 0 && amount > planPrice) {
+        throw new Error(`Renewal payment cannot exceed ${money(planPrice)} for the selected plan.`);
+      }
+
       const renewal = await membershipsApi.renewMembership(Number(memberId), {
         planId: Number(planId),
         startDate,
         status: "ACTIVE"
       });
 
-      if (paymentAmount && Number(paymentAmount) > 0) {
+      if (amount !== undefined && amount > 0) {
         await paymentsApi.createPayment({
           gymId: selectedMember?.gymId ?? selectedPlan?.gymId,
           branchId: selectedMember?.branchId ?? selectedMember?.homeBranchId,
           memberId: Number(memberId),
           membershipId: renewal.id,
-          amount: Number(paymentAmount),
+          amount,
           method: paymentMethod,
           notes: `Membership renewal for ${selectedPlan?.name ?? "selected plan"}`
         });
@@ -105,9 +122,10 @@ export function RenewMembershipPage() {
     }
   }
 
-  if (workspace.loading || memberships.loading) return <LoadingState />;
+  if (workspace.loading || memberships.loading || plansApi.loading) return <LoadingState />;
   if (workspace.error) return <ErrorState message={workspace.error} />;
   if (memberships.error) return <ErrorState message={memberships.error} />;
+  if (plansApi.error) return <ErrorState message={plansApi.error} />;
 
   return (
     <div className="space-y-5 pb-24">
@@ -143,7 +161,7 @@ export function RenewMembershipPage() {
 
           <label className="grid gap-1 text-sm font-bold text-slate-800">
             Membership plan
-            <Select value={planId} onChange={(event) => setPlanId(event.target.value)} required>
+            <Select value={planId} onChange={(event) => updatePlan(event.target.value)} required>
               <option value="">Select plan</option>
               {plans
                 .filter((plan) => plan.isActive !== false && (!selectedMember?.gymId || !plan.gymId || plan.gymId === selectedMember.gymId))
@@ -162,7 +180,7 @@ export function RenewMembershipPage() {
 
           <label className="grid gap-1 text-sm font-bold text-slate-800">
             Payment amount
-            <Input type="number" min="0" step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} placeholder={selectedPlan?.price ? String(selectedPlan.price) : "Optional"} />
+            <Input type="number" min="0" max={selectedPlan?.price ?? undefined} step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} placeholder={selectedPlan?.price ? String(selectedPlan.price) : "Optional"} />
           </label>
 
           <label className="grid gap-1 text-sm font-bold text-slate-800">
@@ -195,7 +213,7 @@ export function RenewMembershipPage() {
             label: "Renew",
             onClick: (row) => {
               setMemberId(String(row.id));
-              setPlanId("");
+              updatePlan("");
               setStartDate(todayIso());
               setMessage("");
               setError("");

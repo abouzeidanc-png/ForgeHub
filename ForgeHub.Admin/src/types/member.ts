@@ -19,7 +19,35 @@ export interface Member {
   joinedAt?: string;
   membershipStartDate?: string;
   membershipEndDate?: string;
+  lastCheckIn?: string | null;
   isActive?: boolean;
+}
+
+export interface StaffMemberDetails extends Member {
+  totalPaid?: number;
+  lastPaymentAmount?: number;
+  lastPaymentAt?: string | null;
+  lastPaymentMethod?: string;
+  recentPayments?: Array<{
+    id: number;
+    amount?: string | number;
+    amountValue?: number | null;
+    method?: string | null;
+    paymentType?: string;
+    paidAt?: string | null;
+    at?: string;
+    status?: string;
+  }>;
+  recentCheckIns?: Array<{
+    id: number;
+    branchName?: string;
+    memberName?: string;
+    status?: string;
+    checkInTime?: string | null;
+    checkOutTime?: string | null;
+    at?: string;
+    source?: string;
+  }>;
 }
 
 export interface MemberPersonalInfo {

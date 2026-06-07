@@ -25,7 +25,11 @@ public class NotificationsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetNotifications([FromQuery] long? gymId, [FromQuery] long? branchId)
+    public async Task<IActionResult> GetNotifications(
+        [FromQuery] long? gymId,
+        [FromQuery] long? branchId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize)
     {
         var query = ApplyScope(_context.Notifications.AsQueryable());
 
@@ -39,7 +43,25 @@ public class NotificationsController : ControllerBase
             query = query.Where(n => n.BranchId == branchId.Value);
         }
 
-        var notifications = await query.OrderByDescending(n => n.CreatedAt).ToListAsync();
+        var totalCount = await query.CountAsync();
+        var safePageSize = Math.Clamp(pageSize ?? 100, 1, 100);
+        var safePage = Math.Max(page ?? 1, 1);
+        var notifications = page.HasValue || pageSize.HasValue
+            ? await query.OrderByDescending(n => n.CreatedAt).Skip((safePage - 1) * safePageSize).Take(safePageSize).ToListAsync()
+            : await query.OrderByDescending(n => n.CreatedAt).ToListAsync();
+
+        if (page.HasValue || pageSize.HasValue)
+        {
+            return Ok(new PagedResultDto<Notification>
+            {
+                Items = notifications,
+                TotalCount = totalCount,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)safePageSize))
+            });
+        }
+
         return Ok(notifications);
     }
 
@@ -332,6 +354,14 @@ public class NotificationsController : ControllerBase
         if (_currentUser.IsInRole(AppRoles.SuperAdmin))
         {
             return query;
+        }
+
+        if (_currentUser.IsInRole(AppRoles.BranchManager))
+        {
+            var branchId = _currentUser.BranchId;
+            return branchId.HasValue
+                ? query.Where(item => item.BranchId == branchId.Value)
+                : query.Where(item => false);
         }
 
         if (_currentUser.GymId.HasValue)

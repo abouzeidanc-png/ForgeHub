@@ -31,7 +31,15 @@ public class CheckInsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetCheckIns([FromQuery] long? memberId, [FromQuery] long? branchId)
+    public async Task<IActionResult> GetCheckIns(
+        [FromQuery] long? memberId,
+        [FromQuery] long? branchId,
+        [FromQuery] string? range,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] bool suspiciousOnly = false,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
         var query = ApplyScope(_context.CheckIns
             .Include(c => c.Member)
@@ -45,19 +53,71 @@ public class CheckInsController : ControllerBase
 
         if (branchId.HasValue)
         {
+            if ((_currentUser.IsInRole(AppRoles.BranchManager) || _currentUser.IsInRole(AppRoles.Staff)) &&
+                branchId != _currentUser.BranchId)
+            {
+                return Forbid();
+            }
+
             query = query.Where(c => c.BranchId == branchId.Value);
         }
 
-        var checkIns = await query.OrderByDescending(c => c.CheckInTime).Take(200).ToListAsync();
+        var (fromUtc, toUtc) = ResolveDateWindow(range, from, to);
+        if (fromUtc.HasValue)
+        {
+            query = query.Where(c => c.CheckInTime >= fromUtc.Value);
+        }
+
+        if (toUtc.HasValue)
+        {
+            query = query.Where(c => c.CheckInTime < toUtc.Value);
+        }
+
+        var totalCount = await query.CountAsync();
+        var safePageSize = Math.Clamp(pageSize ?? 200, 1, 200);
+        var safePage = Math.Max(page ?? 1, 1);
+        var orderedQuery = query.OrderByDescending(c => c.CheckInTime);
+        var checkIns = suspiciousOnly
+            ? await orderedQuery.Take(500).ToListAsync()
+            : page.HasValue || pageSize.HasValue
+                ? await orderedQuery.Skip((safePage - 1) * safePageSize).Take(safePageSize).ToListAsync()
+                : await orderedQuery.Take(200).ToListAsync();
         var scopedMemberIds = checkIns.Where(item => item.MemberId.HasValue).Select(item => item.MemberId!.Value).Distinct().ToList();
-        var historyStart = DateTime.UtcNow.Date.AddDays(-30);
+        var historyStart = fromUtc ?? DateTime.UtcNow.Date.AddDays(-30);
         var history = await ApplyScope(_context.CheckIns.AsQueryable())
             .Where(item => item.MemberId.HasValue && scopedMemberIds.Contains(item.MemberId.Value) && item.CheckInTime >= historyStart)
             .OrderBy(item => item.MemberId)
             .ThenBy(item => item.CheckInTime)
             .ToListAsync();
 
-        return Ok(checkIns.Select(item => ToAttendanceDto(item, history)).ToList());
+        var scopedDtos = checkIns.Select(item => ToAttendanceDto(item, history)).ToList();
+        if (suspiciousOnly)
+        {
+            scopedDtos = scopedDtos.Where(item => item.IsSuspicious).ToList();
+            totalCount = scopedDtos.Count;
+            if (page.HasValue || pageSize.HasValue)
+            {
+                scopedDtos = scopedDtos
+                    .Skip((safePage - 1) * safePageSize)
+                    .Take(safePageSize)
+                    .ToList();
+            }
+        }
+
+        var items = scopedDtos;
+        if (page.HasValue || pageSize.HasValue)
+        {
+            return Ok(new PagedResultDto<AdminAttendanceDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)safePageSize))
+            });
+        }
+
+        return Ok(items);
     }
 
     [HttpGet("active")]
@@ -390,6 +450,11 @@ public class CheckInsController : ControllerBase
             return query.Where(item => item.MemberId.HasValue && memberIds.Contains(item.MemberId.Value));
         }
 
+        if (_currentUser.IsInRole(AppRoles.BranchManager) && !_currentUser.BranchId.HasValue)
+        {
+            return query.Where(item => false);
+        }
+
         if (_currentUser.BranchId.HasValue && !_currentUser.IsInRole(AppRoles.GymOwner))
         {
             return query.Where(item => item.BranchId == _currentUser.BranchId.Value);
@@ -402,6 +467,44 @@ public class CheckInsController : ControllerBase
         }
 
         return query.Where(item => false);
+    }
+
+    private static (DateTime? FromUtc, DateTime? ToUtc) ResolveDateWindow(string? range, DateTime? from, DateTime? to)
+    {
+        var now = DateTime.UtcNow;
+        var today = now.Date;
+        var normalized = (range ?? string.Empty).Trim().ToLowerInvariant();
+        DateTime? fromUtc = normalized switch
+        {
+            "1d" or "1day" or "day" or "today" => today,
+            "7d" or "7day" or "7days" or "week" => today.AddDays(-6),
+            "1m" or "1month" or "month" => today.AddMonths(-1),
+            _ => from
+        };
+        var toUtc = normalized switch
+        {
+            "1d" or "1day" or "day" or "today" => today.AddDays(1),
+            "7d" or "7day" or "7days" or "week" => now,
+            "1m" or "1month" or "month" => now,
+            _ => to
+        };
+
+        return (NormalizeUtc(fromUtc), NormalizeUtc(toUtc));
+    }
+
+    private static DateTime? NormalizeUtc(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        return value.Value.Kind switch
+        {
+            DateTimeKind.Utc => value.Value,
+            DateTimeKind.Local => value.Value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+        };
     }
 
     private bool CanManageCheckIn(CheckIn checkIn)
@@ -459,6 +562,7 @@ public class CheckInsController : ControllerBase
             Id = checkIn.Id,
             MemberId = checkIn.MemberId,
             BranchId = checkIn.BranchId,
+            BranchName = checkIn.Branch?.Name ?? "Not assigned",
             MemberName = isOneDayPass ? "One Day Pass" : checkIn.Member?.FullName ?? "Member",
             Type = isOneDayPass ? "Guest" : "Member",
             Status = isActive
@@ -474,7 +578,9 @@ public class CheckInsController : ControllerBase
                 : $"{checkIn.Method ?? "Front desk"} -> {checkIn.CheckOutMethod ?? "manual"}",
             IsSuspicious = suspicion.IsSuspicious,
             SuspicionReason = suspicion.Reason,
-            SuspicionLevel = suspicion.Level
+            SuspicionLevel = suspicion.Level,
+            AlertType = suspicion.IsSuspicious ? "SUS" : string.Empty,
+            AlertMessage = suspicion.IsSuspicious ? suspicion.Reason : string.Empty
         };
     }
 

@@ -121,7 +121,9 @@ public class MembersController : ControllerBase
                 PlanId = membership?.PlanId is long planId && plans.TryGetValue(planId, out var planName) && !string.IsNullOrWhiteSpace(planName)
                     ? planName
                     : "Unassigned",
-                Status = membership?.Status ?? (member.IsActive ? AppStatuses.MembershipActive : "INACTIVE"),
+                Status = member.IsActive
+                    ? membership?.Status ?? AppStatuses.MembershipActive
+                    : "INACTIVE",
                 PaymentStatus = latestPaymentMemberIds.Contains(member.Id) ? AppStatuses.PaymentPaid : AppStatuses.PaymentPending,
                 AttendanceToday = activeSet.Contains(member.Id)
                     ? "Currently checked in"
@@ -466,6 +468,11 @@ public class MembersController : ControllerBase
             return query;
         }
 
+        if (_currentUser.IsInRole(AppRoles.BranchManager) && !_currentUser.BranchId.HasValue)
+        {
+            return query.Where(item => false);
+        }
+
         if (_currentUser.IsInRole(AppRoles.GymOwner))
         {
             var ownedGymIds = _context.Gyms
@@ -494,6 +501,13 @@ public class MembersController : ControllerBase
 
     private async Task<bool> IsValidMemberScopeAsync(long? gymId, long? branchId)
     {
+        if (_currentUser.IsInRole(AppRoles.BranchManager) || _currentUser.IsInRole(AppRoles.Staff))
+        {
+            return _currentUser.BranchId.HasValue &&
+                branchId == _currentUser.BranchId &&
+                gymId == _currentUser.GymId;
+        }
+
         if (_currentUser.IsInRole(AppRoles.GymOwner))
         {
             if (!gymId.HasValue || !await _context.Gyms.AnyAsync(gym => gym.Id == gymId.Value && (gym.OwnerUserId == _currentUser.UserId || (_currentUser.GymId.HasValue && gym.Id == _currentUser.GymId.Value))))

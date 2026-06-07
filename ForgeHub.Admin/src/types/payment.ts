@@ -10,6 +10,8 @@ export interface Payment {
   amount?: string | number;
   amountValue?: number | null;
   method?: string | null;
+  paymentType?: string | null;
+  cashier?: string | null;
   status?: string;
   paidAt?: string | null;
   at?: string;

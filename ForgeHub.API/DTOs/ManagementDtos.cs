@@ -302,7 +302,20 @@ public class StaffMemberSearchDto
     public string JoinedAt { get; set; } = string.Empty;
     public string MembershipStartDate { get; set; } = string.Empty;
     public string MembershipEndDate { get; set; } = string.Empty;
+    public DateTime? LastCheckIn { get; set; }
     public bool IsActive { get; set; }
+}
+
+public class StaffMemberDetailsDto : StaffMemberSearchDto
+{
+    public string Gender { get; set; } = string.Empty;
+    public DateOnly? Dob { get; set; }
+    public decimal TotalPaid { get; set; }
+    public decimal LastPaymentAmount { get; set; }
+    public DateTime? LastPaymentAt { get; set; }
+    public string LastPaymentMethod { get; set; } = string.Empty;
+    public List<AdminPaymentDto> RecentPayments { get; set; } = [];
+    public List<AdminAttendanceDto> RecentCheckIns { get; set; } = [];
 }
 
 public class PagedResultDto<T>
@@ -387,6 +400,8 @@ public class AdminPaymentDto
     public decimal? AmountValue { get; set; }
     public string Amount { get; set; } = string.Empty;
     public string Method { get; set; } = string.Empty;
+    public string PaymentType { get; set; } = string.Empty;
+    public string Cashier { get; set; } = string.Empty;
     public string Status { get; set; } = "Completed";
     public string At { get; set; } = string.Empty;
     public DateTime? PaidAt { get; set; }
@@ -398,6 +413,7 @@ public class AdminAttendanceDto
     public long Id { get; set; }
     public long? MemberId { get; set; }
     public long? BranchId { get; set; }
+    public string BranchName { get; set; } = string.Empty;
     public string MemberName { get; set; } = string.Empty;
     public string Type { get; set; } = "Member";
     public string Status { get; set; } = string.Empty;
@@ -408,6 +424,8 @@ public class AdminAttendanceDto
     public bool IsSuspicious { get; set; }
     public string SuspicionReason { get; set; } = string.Empty;
     public string SuspicionLevel { get; set; } = "none";
+    public string AlertType { get; set; } = string.Empty;
+    public string AlertMessage { get; set; } = string.Empty;
 }
 
 public class BranchOperationsReportDto

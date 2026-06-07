@@ -44,12 +44,16 @@ public class PaymentsController : ControllerBase
             query = query.Where(p => p.MemberId == memberId.Value);
         }
 
-        var payments = await query
+        var paymentEntities = await query
             .Include(payment => payment.Member)
             .Include(payment => payment.Branch)
             .Include(payment => payment.Membership)
                 .ThenInclude(membership => membership!.Plan)
+            .Include(payment => payment.ReceivedByUser)
             .OrderByDescending(p => p.PaidAt)
+            .ToListAsync();
+
+        var payments = paymentEntities
             .Select(payment => new AdminPaymentDto
             {
                 Id = payment.Id,
@@ -62,12 +66,14 @@ public class PaymentsController : ControllerBase
                 AmountValue = payment.Amount,
                 Amount = payment.Amount.HasValue ? $"${payment.Amount.Value:0.##}" : "$0",
                 Method = payment.Method ?? "Unknown",
+                PaymentType = IsOneDayPayment(payment) ? "DAY_PASS" : "MEMBERSHIP",
+                Cashier = payment.ReceivedByUser != null ? payment.ReceivedByUser.FullName ?? "Staff" : "Not assigned",
                 Status = AppStatuses.PaymentPaid,
                 At = payment.PaidAt.HasValue ? payment.PaidAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) : string.Empty,
                 PaidAt = payment.PaidAt,
                 Notes = payment.Notes
             })
-            .ToListAsync();
+            .ToList();
 
         return Ok(payments);
     }
@@ -131,6 +137,11 @@ public class PaymentsController : ControllerBase
                 return Forbid();
             }
 
+            if (request.Amount.HasValue && request.Amount.Value < 0)
+            {
+                return BadRequest(new { message = "Payment amount cannot be negative." });
+            }
+
             var scopedGymId = _currentUser.IsInRole(AppRoles.SuperAdmin) ? request.GymId : await ResolveOwnedGymIdAsync(request.GymId ?? member?.GymId);
             var scopedBranchId = _currentUser.IsInRole(AppRoles.GymOwner) || _currentUser.IsInRole(AppRoles.SuperAdmin)
                 ? request.BranchId ?? member?.HomeBranchId
@@ -139,6 +150,12 @@ public class PaymentsController : ControllerBase
             if (!await IsValidPaymentScopeAsync(scopedGymId, scopedBranchId))
             {
                 return BadRequest(new { message = "Invalid gym or branch scope." });
+            }
+
+            var paymentValidationError = await ValidateMembershipPaymentAsync(request.MembershipId, member, scopedBranchId, request.Amount);
+            if (paymentValidationError != null)
+            {
+                return BadRequest(new { message = paymentValidationError });
             }
 
             var payment = new Payment
@@ -191,6 +208,12 @@ public class PaymentsController : ControllerBase
         if (_currentUser.IsInRole(AppRoles.SuperAdmin))
         {
             return query;
+        }
+
+        if ((_currentUser.IsInRole(AppRoles.BranchManager) || _currentUser.IsInRole(AppRoles.Staff)) &&
+            !_currentUser.BranchId.HasValue)
+        {
+            return query.Where(item => false);
         }
 
         if (_currentUser.IsInRole(AppRoles.GymOwner))
@@ -260,6 +283,13 @@ public class PaymentsController : ControllerBase
 
     private async Task<bool> IsValidPaymentScopeAsync(long? gymId, long? branchId)
     {
+        if (_currentUser.IsInRole(AppRoles.BranchManager) || _currentUser.IsInRole(AppRoles.Staff))
+        {
+            return _currentUser.BranchId.HasValue &&
+                branchId == _currentUser.BranchId &&
+                gymId == _currentUser.GymId;
+        }
+
         if (_currentUser.IsInRole(AppRoles.GymOwner))
         {
             if (!gymId.HasValue || !await _context.Gyms.AnyAsync(gym => gym.Id == gymId.Value && (gym.OwnerUserId == _currentUser.UserId || (_currentUser.GymId.HasValue && gym.Id == _currentUser.GymId.Value))))
@@ -278,5 +308,78 @@ public class PaymentsController : ControllerBase
         }
 
         return await _context.Branches.AnyAsync(branch => branch.Id == branchId.Value && branch.GymId == gymId);
+    }
+
+    private async Task<string?> ValidateMembershipPaymentAsync(long? membershipId, Member? member, long? branchId, decimal? amount)
+    {
+        if (!membershipId.HasValue)
+        {
+            return null;
+        }
+
+        var membership = await _context.MemberMemberships
+            .Include(item => item.Plan)
+            .FirstOrDefaultAsync(item => item.Id == membershipId.Value);
+
+        if (membership == null)
+        {
+            return "Membership record not found.";
+        }
+
+        if (member != null && membership.MemberId != member.Id)
+        {
+            return "Membership record does not belong to the selected member.";
+        }
+
+        if (branchId.HasValue && !await IsPlanAvailableForBranchAsync(membership.Plan, branchId.Value))
+        {
+            return "Selected membership plan is not available in your assigned branch.";
+        }
+
+        var planPrice = membership.Plan?.Price;
+        if (amount.HasValue && planPrice.HasValue && amount.Value > planPrice.Value)
+        {
+            return $"Payment amount cannot exceed the selected plan price of {planPrice.Value:0.##}.";
+        }
+
+        return null;
+    }
+
+    private async Task<bool> IsPlanAvailableForBranchAsync(MembershipPlan? plan, long branchId)
+    {
+        if (plan == null || !plan.IsActive)
+        {
+            return false;
+        }
+
+        var branchGymId = await _context.Branches
+            .Where(branch => branch.Id == branchId && branch.IsActive)
+            .Select(branch => branch.GymId)
+            .FirstOrDefaultAsync();
+
+        if (!branchGymId.HasValue || plan.GymId != branchGymId.Value)
+        {
+            return false;
+        }
+
+        var accessType = plan.AccessType ?? string.Empty;
+        if (accessType.Equals("full-access", StringComparison.OrdinalIgnoreCase) ||
+            accessType.Equals("DAY_PASS", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return await _context.MembershipPlanBranches
+            .AnyAsync(link => link.MembershipPlanId == plan.Id && link.BranchId == branchId);
+    }
+
+    private static bool IsOneDayPayment(Payment payment)
+    {
+        var method = payment.Method ?? string.Empty;
+        var notes = payment.Notes ?? string.Empty;
+        return method.Contains("DAY_PASS", StringComparison.OrdinalIgnoreCase) ||
+            method.Contains("One Day", StringComparison.OrdinalIgnoreCase) ||
+            notes.Contains("One Day", StringComparison.OrdinalIgnoreCase) ||
+            notes.Contains("DAY_PASS", StringComparison.OrdinalIgnoreCase);
     }
 }

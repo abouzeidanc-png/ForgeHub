@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { usersApi } from "../../api/usersApi";
 import { UserForm } from "../../components/forms/UserForm";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
@@ -7,6 +7,7 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { Modal } from "../../components/ui/Modal";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { PaginationControls } from "../../components/ui/PaginationControls";
 import { Select } from "../../components/ui/Select";
 import { useApi } from "../../hooks/useApi";
 import type { User } from "../../types/user";
@@ -15,27 +16,29 @@ import { roleIds, roleLabels } from "../../utils/constants";
 const managedRoleIds = [roleIds.Staff, roleIds.Trainer];
 const managedRoles = ["Staff", "Trainer"] as const;
 const allRoles = "all";
+const pageSize = 10;
 
 function roleName(user: User) {
   const byId = Object.entries(roleIds).find(([, id]) => id === user.roleId)?.[0];
   return String(user.role ?? byId ?? "Staff");
 }
 
-function isManagedUser(user: User) {
-  return managedRoleIds.includes(Number(user.roleId)) || managedRoles.includes(roleName(user) as typeof managedRoles[number]);
-}
-
 export function BranchStaffPage() {
-  const { data, loading, error, reload } = useApi(usersApi.getUsers, []);
+  const [page, setPage] = useState(1);
   const [role, setRole] = useState(allRoles);
+  const { data, loading, error, reload } = useApi(() => usersApi.getUsersPage({
+    page,
+    pageSize,
+    managedTeam: true,
+    teamRole: role === allRoles ? undefined : role
+  }), [page, role]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const [confirm, setConfirm] = useState<{ user: User; active: boolean } | null>(null);
   const [notice, setNotice] = useState("");
   const [actionError, setActionError] = useState("");
 
-  const users = useMemo(() => (data ?? []).filter(isManagedUser), [data]);
-  const filtered = useMemo(() => users.filter((user) => role === allRoles || roleName(user) === role), [role, users]);
+  const users = data?.items ?? [];
 
   async function setUserActive(user: User, active: boolean) {
     setActionError("");
@@ -60,11 +63,11 @@ export function BranchStaffPage() {
       {actionError ? <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{actionError}</div> : null}
       <DataTable
         title="Team"
-        rows={filtered}
+        rows={users}
         createLabel="Create user"
         onCreate={() => setOpen(true)}
         toolbar={(
-          <Select className="min-w-40" value={role} onChange={(event) => setRole(event.target.value)}>
+          <Select className="min-w-40" value={role} onChange={(event) => { setRole(event.target.value); setPage(1); }}>
             <option value={allRoles}>All roles</option>
             {managedRoles.map((item) => <option key={item} value={item}>{roleLabels[item]}</option>)}
           </Select>
@@ -81,6 +84,13 @@ export function BranchStaffPage() {
           { label: "Activate", onClick: (row) => setConfirm({ user: row, active: true }), hidden: (row) => row.isActive === true },
           { label: "Deactivate", variant: "danger", onClick: (row) => setConfirm({ user: row, active: false }), hidden: (row) => row.isActive === false }
         ]}
+      />
+      <PaginationControls
+        page={data?.page ?? page}
+        totalPages={data?.totalPages ?? 1}
+        totalCount={data?.totalCount}
+        pageSize={data?.pageSize ?? pageSize}
+        onPageChange={setPage}
       />
       <Modal open={open} title="Create user" onClose={() => setOpen(false)}>
         <UserForm

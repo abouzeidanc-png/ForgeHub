@@ -1,10 +1,15 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ForgeHub.API.Models;
 
 namespace ForgeHub.API.Data;
 
 public class ApplicationDbContext : DbContext
 {
+    private static readonly ValueConverter<DateTime?, DateTime?> NullableUtcDateTimeConverter = new(
+        value => value.HasValue ? ToUtc(value.Value) : null,
+        value => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null);
+
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
@@ -249,8 +254,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.TrainerUserId).HasColumnName("trainer_user_id");
             entity.Property(e => e.Name).HasColumnName("name");
             entity.Property(e => e.Capacity).HasColumnName("capacity");
-            entity.Property(e => e.StartTime).HasColumnName("start_time");
-            entity.Property(e => e.EndTime).HasColumnName("end_time");
+            entity.Property(e => e.StartTime).HasColumnName("start_time").HasConversion(NullableUtcDateTimeConverter);
+            entity.Property(e => e.EndTime).HasColumnName("end_time").HasConversion(NullableUtcDateTimeConverter);
             entity.HasIndex(e => e.BranchId);
             entity.HasIndex(e => e.TrainerUserId);
             entity.HasIndex(e => e.StartTime);
@@ -445,4 +450,11 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.GymId);
         });
     }
+
+    private static DateTime ToUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
 }

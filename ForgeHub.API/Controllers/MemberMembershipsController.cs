@@ -15,16 +15,18 @@ namespace ForgeHub.API.Controllers;
 public class MemberMembershipsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly ICurrentUser _currentUser;
 
-    public MemberMembershipsController(ApplicationDbContext context)
+    public MemberMembershipsController(ApplicationDbContext context, ICurrentUser currentUser)
     {
         _context = context;
+        _currentUser = currentUser;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetMemberships([FromQuery] long? memberId)
     {
-        var query = _context.MemberMemberships.AsQueryable();
+        var query = ApplyScope(_context.MemberMemberships.AsQueryable());
 
         if (memberId.HasValue)
         {
@@ -38,7 +40,7 @@ public class MemberMembershipsController : ControllerBase
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetMembership(long id)
     {
-        var membership = await _context.MemberMemberships.FindAsync(id);
+        var membership = await ApplyScope(_context.MemberMemberships.AsQueryable()).FirstOrDefaultAsync(item => item.Id == id);
         return membership == null ? NotFound() : Ok(membership);
     }
 
@@ -48,7 +50,10 @@ public class MemberMembershipsController : ControllerBase
     {
         try
         {
-            if (request.MemberId.HasValue && !await _context.Members.AnyAsync(m => m.Id == request.MemberId.Value))
+            var member = request.MemberId.HasValue
+                ? await ApplyMemberScope(_context.Members.AsQueryable()).FirstOrDefaultAsync(m => m.Id == request.MemberId.Value)
+                : null;
+            if (request.MemberId.HasValue && member == null)
             {
                 return BadRequest(new { message = "Member not found." });
             }
@@ -56,10 +61,10 @@ public class MemberMembershipsController : ControllerBase
             MembershipPlan? plan = null;
             if (request.PlanId.HasValue)
             {
-                plan = await _context.MembershipPlans.FindAsync(request.PlanId.Value);
+                plan = await ApplyPlanScope(_context.MembershipPlans.AsQueryable()).FirstOrDefaultAsync(item => item.Id == request.PlanId.Value);
                 if (plan == null)
                 {
-                    return BadRequest(new { message = "Membership plan not found." });
+                    return BadRequest(new { message = "Membership plan not found in your assigned branch." });
                 }
             }
 
@@ -90,10 +95,20 @@ public class MemberMembershipsController : ControllerBase
     {
         try
         {
-            var membership = await _context.MemberMemberships.FindAsync(id);
+            var membership = await ApplyScope(_context.MemberMemberships.AsQueryable()).FirstOrDefaultAsync(item => item.Id == id);
             if (membership == null)
             {
                 return NotFound();
+            }
+
+            if (request.MemberId.HasValue && !await ApplyMemberScope(_context.Members.AsQueryable()).AnyAsync(item => item.Id == request.MemberId.Value))
+            {
+                return BadRequest(new { message = "Member not found in your assigned branch." });
+            }
+
+            if (request.PlanId.HasValue && !await ApplyPlanScope(_context.MembershipPlans.AsQueryable()).AnyAsync(item => item.Id == request.PlanId.Value))
+            {
+                return BadRequest(new { message = "Membership plan not found in your assigned branch." });
             }
 
             membership.MemberId = request.MemberId;
@@ -110,5 +125,80 @@ public class MemberMembershipsController : ControllerBase
         {
             return StatusCode(500, new { message = ex.ToDetailedMessage() });
         }
+    }
+
+    private IQueryable<MemberMembership> ApplyScope(IQueryable<MemberMembership> query)
+    {
+        var members = ApplyMemberScope(_context.Members.AsQueryable()).Select(item => item.Id);
+        return query.Where(item => item.MemberId.HasValue && members.Contains(item.MemberId.Value));
+    }
+
+    private IQueryable<Member> ApplyMemberScope(IQueryable<Member> query)
+    {
+        if (_currentUser.IsInRole(AppRoles.SuperAdmin))
+        {
+            return query;
+        }
+
+        if (_currentUser.IsInRole(AppRoles.GymOwner))
+        {
+            var ownedGymIds = _context.Gyms
+                .Where(gym => gym.OwnerUserId == _currentUser.UserId || (_currentUser.GymId.HasValue && gym.Id == _currentUser.GymId.Value))
+                .Select(gym => gym.Id);
+            return query.Where(item => item.GymId.HasValue && ownedGymIds.Contains(item.GymId.Value));
+        }
+
+        if ((_currentUser.IsInRole(AppRoles.BranchManager) || _currentUser.IsInRole(AppRoles.Staff)) &&
+            !_currentUser.BranchId.HasValue)
+        {
+            return query.Where(item => false);
+        }
+
+        if (_currentUser.GymId.HasValue)
+        {
+            query = query.Where(item => item.GymId == _currentUser.GymId.Value);
+        }
+
+        if (_currentUser.BranchId.HasValue && !_currentUser.IsInRole(AppRoles.GymOwner))
+        {
+            query = query.Where(item => item.HomeBranchId == _currentUser.BranchId.Value);
+        }
+
+        return query;
+    }
+
+    private IQueryable<MembershipPlan> ApplyPlanScope(IQueryable<MembershipPlan> query)
+    {
+        if (_currentUser.IsInRole(AppRoles.SuperAdmin))
+        {
+            return query;
+        }
+
+        if (_currentUser.IsInRole(AppRoles.GymOwner))
+        {
+            var ownedGymIds = _context.Gyms
+                .Where(gym => gym.OwnerUserId == _currentUser.UserId || (_currentUser.GymId.HasValue && gym.Id == _currentUser.GymId.Value))
+                .Select(gym => gym.Id);
+            return query.Where(item => item.GymId.HasValue && ownedGymIds.Contains(item.GymId.Value));
+        }
+
+        if (!_currentUser.GymId.HasValue)
+        {
+            return query.Where(item => false);
+        }
+
+        query = query.Where(item => item.GymId == _currentUser.GymId.Value && item.IsActive);
+
+        if ((_currentUser.IsInRole(AppRoles.BranchManager) || _currentUser.IsInRole(AppRoles.Staff)) &&
+            _currentUser.BranchId.HasValue)
+        {
+            var branchId = _currentUser.BranchId.Value;
+            query = query.Where(item =>
+                item.AccessType == "full-access" ||
+                item.AccessType == "DAY_PASS" ||
+                _context.MembershipPlanBranches.Any(link => link.MembershipPlanId == item.Id && link.BranchId == branchId));
+        }
+
+        return query;
     }
 }

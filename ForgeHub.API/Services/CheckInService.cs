@@ -231,7 +231,22 @@ public class CheckInService : ICheckInService
             throw new CheckInValidationException("Member not found.");
         }
 
-        var branchId = request.BranchId ?? _currentUser.BranchId ?? member.HomeBranchId;
+        if ((_currentUser.IsInRole(AppRoles.Staff) || _currentUser.IsInRole(AppRoles.BranchManager)) &&
+            !_currentUser.BranchId.HasValue)
+        {
+            throw new CheckInValidationException("No branch assigned to this user.", StatusCodes.Status403Forbidden);
+        }
+
+        if ((_currentUser.IsInRole(AppRoles.Staff) || _currentUser.IsInRole(AppRoles.BranchManager)) &&
+            request.BranchId.HasValue &&
+            request.BranchId.Value != _currentUser.BranchId!.Value)
+        {
+            throw new CheckInValidationException("Cannot check in members outside your assigned branch.", StatusCodes.Status403Forbidden);
+        }
+
+        var branchId = (_currentUser.IsInRole(AppRoles.Staff) || _currentUser.IsInRole(AppRoles.BranchManager))
+            ? _currentUser.BranchId
+            : request.BranchId ?? _currentUser.BranchId ?? member.HomeBranchId;
         var branch = branchId.HasValue
             ? await _context.Branches.FirstOrDefaultAsync(item => item.Id == branchId.Value && item.IsActive)
             : null;

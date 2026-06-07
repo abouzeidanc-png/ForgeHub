@@ -25,6 +25,11 @@ public class StaffOneDayPassController : ControllerBase
     [HttpPost("one-day-pass")]
     public async Task<ActionResult<OneDayPassResponseDto>> CreateOneDayPass([FromBody] CreateOneDayPassDto? dto)
     {
+        if (dto?.AmountPaid is < 0)
+        {
+            return BadRequest(new { message = "One-day pass amount cannot be negative." });
+        }
+
         var staffUser = await _context.Users
             .Where(user => user.Id == _currentUser.UserId && user.IsActive)
             .Select(user => new { user.Id, user.GymId, user.BranchId })

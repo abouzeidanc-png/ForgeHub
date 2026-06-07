@@ -6,5 +6,5 @@ export const classesApi = {
   getClassById: (id: number) => get<GymClass>(`/classes/${id}`),
   createClass: (data: Partial<GymClass>) => post<GymClass>("/classes", data),
   updateClass: (id: number, data: Partial<GymClass>) => put<GymClass>(`/classes/${id}`, data),
-  cancelClass: (item: GymClass) => put<GymClass>(`/classes/${item.id}`, { ...item, status: "CANCELLED" })
+  cancelClass: (item: GymClass) => post<GymClass>(`/classes/${item.id}/cancel`)
 };

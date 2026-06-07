@@ -25,9 +25,36 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetUsers([FromQuery] long? gymId, [FromQuery] long? branchId, [FromQuery] long? roleId)
+    public async Task<IActionResult> GetUsers(
+        [FromQuery] long? gymId,
+        [FromQuery] long? branchId,
+        [FromQuery] long? roleId,
+        [FromQuery] string? teamRole,
+        [FromQuery] bool managedTeam = false,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
         var query = ApplyScope(_context.Users.Include(u => u.Role).AsQueryable());
+        var managerBranchId = _currentUser.IsInRole(AppRoles.BranchManager)
+            ? await ResolveCurrentManagerBranchIdAsync()
+            : _currentUser.BranchId;
+
+        if (managedTeam && _currentUser.IsInRole(AppRoles.BranchManager))
+        {
+            if (!managerBranchId.HasValue)
+            {
+                query = query.Where(u => false);
+            }
+            else
+            {
+                var currentBranchId = managerBranchId.Value;
+                query = _context.Users
+                    .Include(u => u.Role)
+                    .Where(u =>
+                        u.BranchId == currentBranchId ||
+                        _context.Employees.Any(employee => employee.UserId == u.Id && employee.BranchId == currentBranchId));
+            }
+        }
 
         if (gymId.HasValue)
         {
@@ -36,7 +63,17 @@ public class UsersController : ControllerBase
 
         if (branchId.HasValue)
         {
-            query = query.Where(u => u.BranchId == branchId.Value);
+            if (_currentUser.IsInRole(AppRoles.BranchManager))
+            {
+                if (branchId != managerBranchId)
+                {
+                    return Forbid();
+                }
+            }
+            else
+            {
+                query = query.Where(u => u.BranchId == branchId.Value);
+            }
         }
 
         if (roleId.HasValue)
@@ -44,10 +81,60 @@ public class UsersController : ControllerBase
             query = query.Where(u => u.RoleId == roleId.Value);
         }
 
+        if (managedTeam)
+        {
+            query = query.Where(u =>
+                (u.Role != null && (u.Role.Name.ToLower() == AppRoles.Staff.ToLower() || u.Role.Name.ToLower() == AppRoles.Trainer.ToLower())) ||
+                _context.Employees.Any(employee =>
+                    employee.UserId == u.Id &&
+                    employee.Position != null &&
+                    (employee.Position.ToLower().Contains("staff") || employee.Position.ToLower().Contains("trainer"))));
+            if (!string.IsNullOrWhiteSpace(teamRole))
+            {
+                var normalizedTeamRole = teamRole.Trim().ToLowerInvariant();
+                query = query.Where(u =>
+                    (u.Role != null && u.Role.Name.ToLower() == normalizedTeamRole) ||
+                    _context.Employees.Any(employee =>
+                        employee.UserId == u.Id &&
+                        employee.Position != null &&
+                        employee.Position.ToLower().Contains(normalizedTeamRole)));
+            }
+        }
+
+        var totalCount = await query.CountAsync();
+        var safePageSize = Math.Clamp(pageSize ?? 100, 1, 100);
+        var safePage = Math.Max(page ?? 1, 1);
+        var users = page.HasValue || pageSize.HasValue
+            ? await query.OrderBy(u => u.FullName).Skip((safePage - 1) * safePageSize).Take(safePageSize).ToListAsync()
+            : await query.OrderBy(u => u.FullName).ToListAsync();
+        var userIds = users.Select(user => user.Id).ToList();
+        var employeeInfo = await _context.Employees
+            .Where(employee => employee.UserId.HasValue && userIds.Contains(employee.UserId.Value))
+            .GroupBy(employee => employee.UserId!.Value)
+            .Select(group => new
+            {
+                UserId = group.Key,
+                BranchId = group.Where(employee => employee.BranchId.HasValue).Select(employee => employee.BranchId).FirstOrDefault(),
+                Position = group.Select(employee => employee.Position).FirstOrDefault(position => position != null)
+            })
+            .ToDictionaryAsync(item => item.UserId, item => new EmployeeTeamInfo(item.BranchId, item.Position));
         var gyms = await _context.Gyms.ToListAsync();
         var branches = await _context.Branches.ToListAsync();
-        var users = await query.OrderBy(u => u.FullName).ToListAsync();
-        return Ok(users.Select(user => ToAdminUser(user, gyms, branches)).ToList());
+        var items = users.Select(user => ToAdminUser(user, gyms, branches, employeeInfo)).ToList();
+
+        if (page.HasValue || pageSize.HasValue)
+        {
+            return Ok(new PagedResultDto<AdminUserDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = safePage,
+                PageSize = safePageSize,
+                TotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)safePageSize))
+            });
+        }
+
+        return Ok(items);
     }
 
     [HttpGet("{id:long}")]
@@ -262,13 +349,22 @@ public class UsersController : ControllerBase
             return query;
         }
 
+        if (_currentUser.IsInRole(AppRoles.BranchManager) && !_currentUser.BranchId.HasValue)
+        {
+            return query.Where(item => false);
+        }
+
         if (_currentUser.GymId.HasValue)
         {
             query = query.Where(item => item.GymId == _currentUser.GymId.Value);
         }
 
-        if (_currentUser.BranchId.HasValue &&
-            (_currentUser.IsInRole(AppRoles.BranchManager) || _currentUser.IsInRole(AppRoles.Staff) || _currentUser.IsInRole(AppRoles.Trainer)))
+        if (_currentUser.IsInRole(AppRoles.BranchManager) && _currentUser.BranchId.HasValue)
+        {
+            query = query.Where(item => item.BranchId == _currentUser.BranchId.Value);
+        }
+        else if (_currentUser.BranchId.HasValue &&
+            (_currentUser.IsInRole(AppRoles.Staff) || _currentUser.IsInRole(AppRoles.Trainer)))
         {
             query = query.Where(item => item.BranchId == _currentUser.BranchId.Value || item.BranchId == null);
         }
@@ -433,19 +529,44 @@ public class UsersController : ControllerBase
         }
     }
 
-    private static AdminUserDto ToAdminUser(User user, IReadOnlyCollection<Gym> gyms, IReadOnlyCollection<Branch> branches)
+    private async Task<long?> ResolveCurrentManagerBranchIdAsync()
+    {
+        if (_currentUser.BranchId.HasValue)
+        {
+            return _currentUser.BranchId.Value;
+        }
+
+        var userBranchId = await _context.Users
+            .Where(user => user.Id == _currentUser.UserId)
+            .Select(user => user.BranchId)
+            .FirstOrDefaultAsync();
+        if (userBranchId.HasValue)
+        {
+            return userBranchId.Value;
+        }
+
+        return await _context.Employees
+            .Where(employee => employee.UserId == _currentUser.UserId && employee.BranchId.HasValue)
+            .Select(employee => employee.BranchId)
+            .FirstOrDefaultAsync();
+    }
+
+    private static AdminUserDto ToAdminUser(User user, IReadOnlyCollection<Gym> gyms, IReadOnlyCollection<Branch> branches, IReadOnlyDictionary<long, EmployeeTeamInfo>? employeeInfo = null)
     {
         var ownedGym = gyms.FirstOrDefault(gym => gym.OwnerUserId == user.Id);
         var scopedGym = gyms.FirstOrDefault(gym => gym.Id == user.GymId);
         var gymName = scopedGym?.Name ?? ownedGym?.Name ?? "ForgeHub";
-        var branchName = branches.FirstOrDefault(branch => branch.Id == user.BranchId)?.Name ?? gymName;
-        var roleName = user.Role?.Name ?? string.Empty;
+        EmployeeTeamInfo? employee = null;
+        employeeInfo?.TryGetValue(user.Id, out employee);
+        var effectiveBranchId = user.BranchId ?? employee?.BranchId;
+        var branchName = branches.FirstOrDefault(branch => branch.Id == effectiveBranchId)?.Name ?? gymName;
+        var roleName = user.Role?.Name ?? NormalizeEmployeeRole(employee?.Position);
 
         return new AdminUserDto
         {
             Id = user.Id,
             GymId = user.GymId ?? ownedGym?.Id,
-            BranchId = user.BranchId,
+            BranchId = effectiveBranchId,
             RoleId = user.RoleId,
             Name = user.FullName ?? string.Empty,
             Email = user.Email ?? string.Empty,
@@ -456,4 +577,20 @@ public class UsersController : ControllerBase
             IsActive = user.IsActive
         };
     }
+
+    private static string NormalizeEmployeeRole(string? position)
+    {
+        if (string.IsNullOrWhiteSpace(position))
+        {
+            return string.Empty;
+        }
+
+        return position.Contains(AppRoles.Trainer, StringComparison.OrdinalIgnoreCase)
+            ? AppRoles.Trainer
+            : position.Contains(AppRoles.Staff, StringComparison.OrdinalIgnoreCase)
+                ? AppRoles.Staff
+                : position;
+    }
+
+    private sealed record EmployeeTeamInfo(long? BranchId, string? Position);
 }

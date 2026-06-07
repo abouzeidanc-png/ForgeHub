@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { branchesApi } from "../../api/branchesApi";
 import { membersApi } from "../../api/membersApi";
 import { MemberForm } from "../../components/forms/MemberForm";
@@ -9,25 +9,33 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { Modal } from "../../components/ui/Modal";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { PaginationControls } from "../../components/ui/PaginationControls";
 import { Select } from "../../components/ui/Select";
 import { useApi } from "../../hooks/useApi";
 import type { Branch } from "../../types/branch";
 import type { Member } from "../../types/member";
 
 const allStatuses = "all";
+const pageSize = 10;
+const statusOptions = ["ACTIVE", "INACTIVE", "PENDING", "EXPIRED", "FROZEN", "CANCELLED"];
 
-function loadMembersContext() {
-  return Promise.all([membersApi.getMembers(), branchesApi.getBranches()])
+function loadMembersContext(page: number, status: string) {
+  return Promise.all([
+    membersApi.getMembersPage({ page, pageSize, status: status === allStatuses ? undefined : status }),
+    branchesApi.getBranches()
+  ])
     .then(([members, branches]) => ({ members, branches }));
 }
 
 function memberStatus(member: Member) {
+  if (member.isActive === false) return "INACTIVE";
   return member.status?.trim() || (member.isActive ? "ACTIVE" : "INACTIVE");
 }
 
 export function BranchMembersPage() {
-  const { data, loading, error, reload } = useApi(loadMembersContext, []);
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState(allStatuses);
+  const { data, loading, error, reload } = useApi(() => loadMembersContext(page, status), [page, status]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Member | null>(null);
   const [details, setDetails] = useState<Member | null>(null);
@@ -36,9 +44,7 @@ export function BranchMembersPage() {
   const [actionError, setActionError] = useState("");
 
   const branches = data?.branches ?? [];
-  const members = data?.members ?? [];
-  const statuses = useMemo(() => Array.from(new Set(members.map(memberStatus).filter(Boolean))).sort(), [members]);
-  const filtered = useMemo(() => members.filter((member) => status === allStatuses || memberStatus(member) === status), [members, status]);
+  const members = data?.members.items ?? [];
 
   async function setMemberActive(member: Member, active: boolean) {
     setActionError("");
@@ -65,13 +71,13 @@ export function BranchMembersPage() {
       {actionError ? <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{actionError}</div> : null}
       <DataTable
         title="Members"
-        rows={filtered}
+        rows={members}
         createLabel="Create member"
         onCreate={() => setOpen(true)}
         toolbar={(
-          <Select className="min-w-36" value={status} onChange={(event) => setStatus(event.target.value)}>
+          <Select className="min-w-36" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
             <option value={allStatuses}>All statuses</option>
-            {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
+            {statusOptions.map((item) => <option key={item} value={item}>{item}</option>)}
           </Select>
         )}
         columns={[
@@ -85,18 +91,31 @@ export function BranchMembersPage() {
         actions={[
           { label: "View", variant: "secondary", onClick: setDetails },
           { label: "Edit", variant: "secondary", onClick: setEditing },
-          { label: "Activate", onClick: (row) => setConfirm({ member: row, active: true }), className: "!bg-emerald-600 !text-white hover:!bg-emerald-700", hidden: (row) => row.isActive === true || memberStatus(row) === "ACTIVE" },
-          { label: "Deactivate", variant: "danger", onClick: (row) => setConfirm({ member: row, active: false }), hidden: (row) => row.isActive === false || memberStatus(row) === "INACTIVE" }
+          { label: "Reactivate", onClick: (row) => setConfirm({ member: row, active: true }), className: "!bg-emerald-600 !text-white hover:!bg-emerald-700", hidden: (row) => row.isActive !== false },
+          { label: "Deactivate", variant: "danger", onClick: (row) => setConfirm({ member: row, active: false }), hidden: (row) => row.isActive === false }
         ]}
         actionButtonClassName="!h-9 !min-h-9 !rounded-lg !px-3 !py-1.5 text-xs"
       />
+      <PaginationControls
+        page={data?.members.page ?? page}
+        totalPages={data?.members.totalPages ?? 1}
+        totalCount={data?.members.totalCount}
+        pageSize={data?.members.pageSize ?? pageSize}
+        onPageChange={setPage}
+      />
       <Modal open={open} title="Create member" onClose={() => setOpen(false)}>
         <MemberForm branches={branches} onSubmit={async (values) => {
-          await membersApi.createMember(values);
-          setOpen(false);
-          setNotice("Member saved successfully.");
-          await reload();
-        }} />
+          try {
+            setActionError("");
+            await membersApi.createMember(values);
+            setOpen(false);
+            setNotice("Member saved successfully.");
+            setPage(1);
+            await reload();
+          } catch (err) {
+            setActionError(err instanceof Error ? err.message : "Unable to save member.");
+          }
+        }} requirePassword />
       </Modal>
       <Modal open={Boolean(editing)} title="Edit member" onClose={() => setEditing(null)}>
         {editing ? (
@@ -117,8 +136,8 @@ export function BranchMembersPage() {
       </Modal>
       <ConfirmDialog
         open={Boolean(confirm)}
-        title={confirm?.active ? "Activate member" : "Deactivate member"}
-        message={`Confirm ${confirm?.active ? "activation" : "deactivation"} for ${confirm?.member.name ?? confirm?.member.fullName ?? "this member"}?`}
+        title={confirm?.active ? "Reactivate member" : "Deactivate member"}
+        message={`Confirm ${confirm?.active ? "reactivation" : "deactivation"} for ${confirm?.member.name ?? confirm?.member.fullName ?? "this member"}?`}
         onClose={() => setConfirm(null)}
         onConfirm={() => confirm ? setMemberActive(confirm.member, confirm.active) : undefined}
       />
