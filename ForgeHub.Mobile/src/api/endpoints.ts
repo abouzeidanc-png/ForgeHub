@@ -3,6 +3,10 @@ export const endpoints = {
     login: "/Auth/member/login",
     refresh: "/Auth/refresh",
     logout: "/Auth/logout",
+    forgotPasswordRequest: "/Auth/member/forgot-password/request",
+    forgotPasswordVerify: "/Auth/member/forgot-password/verify",
+    forgotPasswordReset: "/Auth/member/forgot-password/reset",
+    changePassword: "/Auth/member/change-password",
     me: "/Auth/me"
   },
   home: {
@@ -32,6 +36,8 @@ export const endpoints = {
   notifications: "/Notifications/me",
   readNotification: (id: number) => `/Notifications/${id}/read`,
   profile: "/member-profile",
+  profilePhoto: "/me/profile-photo",
+  profileDashboard: "/member-profile/dashboard",
   insights: "/member-profile/insights",
   history: "/CheckIns",
   payments: "/member/payments"

@@ -15,7 +15,7 @@ import { profileSchema, ProfileFormValues } from "@/utils/validation";
 import { parseApiError } from "@/utils/errors";
 
 const numericFields: Array<keyof ProfileFormValues> = ["heightCm", "weightKg", "targetWeightKg", "bodyFatPercentage", "waistCm", "chestCm", "shoulderCm", "hipCm", "neckCm", "armCm", "thighCm", "dailyCaloriesTarget", "proteinTargetGrams", "carbsTargetGrams", "fatTargetGrams", "waterTargetMl"];
-const textFields: Array<keyof ProfileFormValues> = ["fitnessGoal", "activityLevel", "trainingExperience", "favoriteWorkoutType", "preferredTrainingDays", "preferredWorkoutTime", "bloodType", "medicalConditions", "allergies", "injuries", "medications", "healthNotes", "emergencyContactName", "emergencyContactRelationship", "emergencyContactPhone", "emergencyContactAltPhone", "language", "theme", "measurementUnit", "profilePhotoUrl"];
+const textFields: Array<keyof ProfileFormValues> = ["fitnessGoal", "activityLevel", "trainingExperience", "favoriteWorkoutType", "preferredTrainingDays", "preferredWorkoutTime", "bloodType", "medicalConditions", "allergies", "injuries", "medications", "healthNotes", "emergencyContactName", "emergencyContactRelationship", "emergencyContactPhone", "emergencyContactAltPhone", "language", "measurementUnit"];
 
 export function EditProfileScreen() {
   const queryClient = useQueryClient();
