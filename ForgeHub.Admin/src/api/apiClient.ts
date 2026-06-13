@@ -90,7 +90,7 @@ async function refreshAccessToken() {
   return refreshed.accessToken;
 }
 
-async function request<T>(method: string, path: string, data?: unknown, params?: Record<string, unknown>, retried = false): Promise<T> {
+async function request<T>(method: string, path: string, data?: unknown, params?: Record<string, unknown>, retried = false, signal?: AbortSignal): Promise<T> {
   const token = getAccessToken();
   const base = API_BASE_URL.replace(/\/$/, "");
   const url = new URL(`${base}${path}`);
@@ -106,7 +106,8 @@ async function request<T>(method: string, path: string, data?: unknown, params?:
         ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
-      body: data === undefined ? undefined : isFormData ? data : JSON.stringify(data)
+      body: data === undefined ? undefined : isFormData ? data : JSON.stringify(data),
+      signal
     });
   } catch {
     throw new Error("Unable to load data. Please verify that the backend API is running and VITE_API_BASE_URL is correct.");
@@ -114,7 +115,7 @@ async function request<T>(method: string, path: string, data?: unknown, params?:
   if (response.status === 401 && !retried) {
     const refreshedToken = await refreshAccessToken();
     if (refreshedToken) {
-      return request<T>(method, path, data, params, true);
+      return request<T>(method, path, data, params, true, signal);
     }
   }
   if (response.status === 401) {
@@ -150,8 +151,8 @@ async function request<T>(method: string, path: string, data?: unknown, params?:
   return await response.json() as T;
 }
 
-export async function get<T>(path: string, params?: Record<string, unknown>) {
-  return request<T>("GET", path, undefined, params);
+export async function get<T>(path: string, params?: Record<string, unknown>, signal?: AbortSignal) {
+  return request<T>("GET", path, undefined, params, false, signal);
 }
 
 export async function post<T>(path: string, data?: unknown) {

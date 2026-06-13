@@ -9,7 +9,9 @@ import { EmptyState } from "../../components/ui/EmptyState";
 import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { useApi } from "../../hooks/useApi";
+import type { GymClass } from "../../types/class";
 import { timeLabel } from "../../utils/formatters";
+import { TrainerClassAttendanceModal } from "./TrainerClassAttendanceModal";
 import { ActionLink, ContactActions, MemberMiniCard, TimelineCard, TrainerHeader, TrainerShell } from "./TrainerComponents";
 import { buildTrainerTimeline, isSameDay, isTomorrow, latestNoteForMember, membershipWarning, remainingSessions, sessionStatus } from "./trainerExperience";
 import type { TrainerTimelineItem } from "./trainerExperience";
@@ -18,6 +20,7 @@ export function TrainerTodayPage() {
   const workspace = useApi(dashboardApi.getWorkspace, []);
   const sessions = useApi(() => trainerSessionsApi.getTrainerSessions(), []);
   const [savingId, setSavingId] = useState("");
+  const [attendanceClass, setAttendanceClass] = useState<GymClass | null>(null);
 
   async function updateSession(item: TrainerTimelineItem, sessionType: string, note: string) {
     if (!item.session) return;
@@ -89,6 +92,7 @@ export function TrainerTodayPage() {
                   onStart={(target) => updateSession(target, "Started", "Session started.")}
                   onComplete={(target) => updateSession(target, "Completed", "Session marked complete.")}
                   onNoShow={(target) => updateSession(target, "No-show", "Member reported as no-show.")}
+                  onAttendance={(target) => setAttendanceClass(target.gymClass ?? null)}
                 />
               )) : <EmptyState title="No sessions or classes today." message="Use quick note if you need to document member work outside the schedule." />}
             </div>
@@ -136,6 +140,7 @@ export function TrainerTodayPage() {
           </Card>
         </aside>
       </div>
+      {attendanceClass ? <TrainerClassAttendanceModal gymClass={attendanceClass} onClose={() => setAttendanceClass(null)} /> : null}
     </TrainerShell>
   );
 }

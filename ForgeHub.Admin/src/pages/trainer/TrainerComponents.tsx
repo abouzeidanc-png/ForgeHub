@@ -52,12 +52,14 @@ export function TimelineCard({
   onStart,
   onComplete,
   onNoShow,
+  onAttendance,
   compact = false
 }: {
   item: TrainerTimelineItem;
   onStart?: (item: TrainerTimelineItem) => void;
   onComplete?: (item: TrainerTimelineItem) => void;
   onNoShow?: (item: TrainerTimelineItem) => void;
+  onAttendance?: (item: TrainerTimelineItem) => void;
   compact?: boolean;
 }) {
   const member = item.member;
@@ -78,6 +80,7 @@ export function TimelineCard({
         {item.kind === "session" && item.status !== "ongoing" && item.status !== "completed" ? <Button type="button" onClick={() => onStart?.(item)}>Start</Button> : null}
         {item.kind === "session" && item.status !== "completed" ? <Button type="button" variant="secondary" onClick={() => onComplete?.(item)}>Complete</Button> : null}
         {item.kind === "session" && item.status !== "no-show" ? <Button type="button" variant="danger" onClick={() => onNoShow?.(item)}>No-show</Button> : null}
+        {item.kind === "class" ? <Button type="button" variant="secondary" onClick={() => onAttendance?.(item)}>Attendance</Button> : null}
       </div>
     </>
   );

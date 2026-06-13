@@ -270,6 +270,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.MemberId).HasColumnName("member_id");
             entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.BookedAt).HasColumnName("booked_at");
+            entity.Property(e => e.Attended).HasColumnName("attended");
+            entity.Property(e => e.AttendedAt).HasColumnName("attended_at").HasConversion(NullableUtcDateTimeConverter);
             entity.HasIndex(e => new { e.ClassId, e.MemberId })
                 .IsUnique()
                 .HasFilter("status IN ('BOOKED', 'Booked')");

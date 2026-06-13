@@ -210,6 +210,25 @@ public class UpdateClassBookingStatusRequest
     public string Status { get; set; } = string.Empty;
 }
 
+public class TrainerClassBookingDto
+{
+    public long BookingId { get; set; }
+    public long? ClassId { get; set; }
+    public long? MemberId { get; set; }
+    public string MemberName { get; set; } = string.Empty;
+    public string? MemberPhone { get; set; }
+    public string? MemberEmail { get; set; }
+    public string? Status { get; set; }
+    public DateTime? BookedAt { get; set; }
+    public bool Attended { get; set; }
+    public DateTime? AttendedAt { get; set; }
+}
+
+public class UpdateClassBookingAttendanceRequest
+{
+    public bool Attended { get; set; }
+}
+
 public class CreateTrainerSessionRequest
 {
     public long? TrainerUserId { get; set; }

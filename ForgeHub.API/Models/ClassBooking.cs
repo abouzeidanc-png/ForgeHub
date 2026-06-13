@@ -12,4 +12,6 @@ public class ClassBooking
     public long? MemberId { get; set; }
     public string? Status { get; set; }
     public DateTime? BookedAt { get; set; }
+    public bool Attended { get; set; }
+    public DateTime? AttendedAt { get; set; }
 }

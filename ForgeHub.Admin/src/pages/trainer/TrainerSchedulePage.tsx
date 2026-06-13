@@ -1,4 +1,5 @@
 import { CalendarDays } from "lucide-react";
+import { useState } from "react";
 import { dashboardApi } from "../../api/dashboardApi";
 import { trainerSessionsApi } from "../../api/trainerSessionsApi";
 import { Badge } from "../../components/ui/Badge";
@@ -8,6 +9,8 @@ import { ErrorState } from "../../components/ui/ErrorState";
 import { LoadingState } from "../../components/ui/LoadingState";
 import { useApi } from "../../hooks/useApi";
 import { dateLabel } from "../../utils/formatters";
+import type { GymClass } from "../../types/class";
+import { TrainerClassAttendanceModal } from "./TrainerClassAttendanceModal";
 import { TimelineCard, TrainerHeader, TrainerShell } from "./TrainerComponents";
 import { buildTrainerTimeline, isSameDay, parseDate } from "./trainerExperience";
 
@@ -24,6 +27,7 @@ function groupKey(value?: string | null) {
 export function TrainerSchedulePage() {
   const workspace = useApi(dashboardApi.getWorkspace, []);
   const sessions = useApi(() => trainerSessionsApi.getTrainerSessions(), []);
+  const [attendanceClass, setAttendanceClass] = useState<GymClass | null>(null);
 
   if (workspace.loading || sessions.loading) return <LoadingState label="Loading trainer schedule..." />;
   if (workspace.error) return <ErrorState message={workspace.error} />;
@@ -63,12 +67,13 @@ export function TrainerSchedulePage() {
             {Object.entries(groups).map(([key, items]) => (
               <section key={key} className="space-y-3">
                 <h2 className="text-sm font-black uppercase tracking-[0.16em] text-forge-muted">{key}</h2>
-                {items.map((item) => <TimelineCard key={item.id} item={item} />)}
+                {items.map((item) => <TimelineCard key={item.id} item={item} onAttendance={(target) => setAttendanceClass(target.gymClass ?? null)} />)}
               </section>
             ))}
           </div>
         </div>
       ) : <EmptyState title="No upcoming trainer schedule." />}
+      {attendanceClass ? <TrainerClassAttendanceModal gymClass={attendanceClass} onClose={() => setAttendanceClass(null)} /> : null}
     </TrainerShell>
   );
 }
