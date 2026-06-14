@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 
 namespace ForgeHub.API.DTOs;
@@ -76,9 +77,9 @@ public class CreateBranchRequest
     public decimal? AreaSqm { get; set; }
     public double? Lat { get; set; }
     public double? Lng { get; set; }
-    public TimeOnly? OpenTime { get; set; }
-    public TimeOnly? CloseTime { get; set; }
-    public bool IsActive { get; set; } = true;
+    public string? OpenTime { get; set; }
+    public string? CloseTime { get; set; }
+    public JsonElement? IsActive { get; set; }
 }
 
 public class UpdateBranchRequest : CreateBranchRequest
