@@ -78,14 +78,6 @@ export function useActiveCheckInLocationWatcher() {
           }
         );
       }
-
-      if (!intervalRef.current) {
-        intervalRef.current = setInterval(() => {
-          void Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-            .then(handlePosition)
-            .catch(() => setMessage("Unable to read location for auto checkout. Manual checkout is still available."));
-        }, CHECK_INTERVAL_MS);
-      }
     };
 
     void startWatching();

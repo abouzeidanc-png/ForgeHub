@@ -1,2 +1,3 @@
-import { TimerScreen } from "@/features/timer/TimerScreen";
-export default TimerScreen;
+import { InsightsScreen } from "@/features/insights/InsightsScreen";
+export default InsightsScreen;
+

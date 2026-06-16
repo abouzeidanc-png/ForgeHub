@@ -5,13 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { checkoutCurrentGymSession, getCurrentGymSession, sendCheckInHeartbeat } from "@/api/checkInApi";
 import { ForgeScreen } from "@/components/layout/ForgeScreen";
-import { ForgeButton } from "@/components/ui/ForgeButton";
 import { ForgeCard } from "@/components/ui/ForgeCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { colors } from "@/theme/colors";
 import { formatDateTime } from "@/utils/formatDate";
+import { CurrentGymSession } from "@/types/checkIn";
 
 function parseTime(value?: string | null) {
   if (!value) return null;
@@ -56,13 +56,13 @@ export function TimerScreen() {
 
 export function TimerPanel() {
   const queryClient = useQueryClient();
-  const [now, setNow] = useState(() => Date.now());
   const query = useQuery({
     queryKey: ["currentGymSession"],
     queryFn: getCurrentGymSession,
     refetchOnMount: "always"
   });
   const { refetch } = query;
+
   const checkoutMutation = useMutation({
     mutationFn: checkoutCurrentGymSession,
     onSuccess: async () => {
@@ -74,11 +74,6 @@ export function TimerPanel() {
       ]);
     }
   });
-
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -110,21 +105,44 @@ export function TimerPanel() {
     return Number.isFinite(serverTime) ? serverTime - Date.now() : 0;
   }, [query.data?.serverTime]);
 
+  if (query.isLoading) return <LoadingState />;
+  if (query.error) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
+
+  return (
+    <TickingTimerPanel
+      session={query.data ?? null}
+      serverOffsetMs={serverOffsetMs}
+      checkoutMutation={checkoutMutation}
+    />
+  );
+}
+
+interface TickingTimerProps {
+  session: CurrentGymSession | null;
+  serverOffsetMs: number;
+  checkoutMutation: any;
+}
+
+function TickingTimerPanel({ session, serverOffsetMs, checkoutMutation }: TickingTimerProps) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const currentDate = useMemo(() => new Date(now + serverOffsetMs), [now, serverOffsetMs]);
   const checkInDate = useMemo(() => {
-    if (!query.data?.checkInTime) return null;
-    const value = new Date(query.data.checkInTime);
+    if (!session?.checkInTime) return null;
+    const value = new Date(session.checkInTime);
     return Number.isNaN(value.getTime()) ? null : value;
-  }, [query.data?.checkInTime]);
-  const branchCloseDate = useMemo(() => getBranchCloseDate(currentDate, query.data?.branchCloseTime), [currentDate, query.data?.branchCloseTime]);
+  }, [session?.checkInTime]);
+  const branchCloseDate = useMemo(() => getBranchCloseDate(currentDate, session?.branchCloseTime), [currentDate, session?.branchCloseTime]);
 
   const elapsed = checkInDate ? currentDate.getTime() - checkInDate.getTime() : 0;
   const countdown = branchCloseDate ? branchCloseDate.getTime() - currentDate.getTime() : 0;
 
-  if (query.isLoading) return <LoadingState />;
-  if (query.error) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
-
-  if (!query.data?.hasActiveCheckIn) {
+  if (!session?.hasActiveCheckIn) {
     return (
       <ForgeCard style={styles.clockCard}>
         <ClockHeader status="Not Checked In" />
@@ -147,7 +165,7 @@ export function TimerPanel() {
       <View style={styles.centerStage}>
         <Text style={styles.faceLabel}>Elapsed</Text>
         <Text style={styles.timerFace}>{formatDuration(elapsed)}</Text>
-        <Text style={styles.branch}>{query.data.branchName ?? "Gym branch"}</Text>
+        <Text style={styles.branch}>{session.branchName ?? "Gym branch"}</Text>
       </View>
 
       <View style={styles.sideBySide}>
@@ -162,7 +180,7 @@ export function TimerPanel() {
       <View style={styles.iphoneList}>
         <View style={styles.iphoneRow}>
           <Text style={styles.rowLabel}>Check-in</Text>
-          <Text style={styles.rowValue}>{checkInDate ? formatDateTime(query.data.checkInTime) : "Not available"}</Text>
+          <Text style={styles.rowValue}>{checkInDate ? formatDateTime(session.checkInTime) : "Not available"}</Text>
         </View>
         <View style={styles.iphoneRow}>
           <Text style={styles.rowLabel}>Status</Text>
@@ -178,6 +196,7 @@ export function TimerPanel() {
   );
 }
 
+// Subcomponents:
 function ClockHeader({ status }: { status: string }) {
   return (
     <View style={styles.headerRow}>

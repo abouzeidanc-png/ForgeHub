@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { StyleSheet, Text } from "react-native";
+import { FlatList, StyleSheet, Text } from "react-native";
 import { getPayments } from "@/api/paymentsApi";
 import { ForgeScreen } from "@/components/layout/ForgeScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -25,18 +25,33 @@ export default function PaymentsTab() {
   const query = useQuery({ queryKey: ["payments"], queryFn: getPayments });
 
   return (
-    <ForgeScreen title="Payments" subtitle="Your billing history" refreshing={query.isRefetching} onRefresh={() => query.refetch()}>
+    <ForgeScreen title="Payments" subtitle="Your billing history" scroll={false}>
       {query.isLoading ? <LoadingState /> : null}
       {query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : null}
-      {query.data?.length === 0 ? <EmptyState title="No payments yet" message="Membership payments will appear here after staff records them." /> : null}
-      {query.data?.map((payment) => (
-        <ForgeCard key={payment.id} style={styles.card}>
-          <Text style={styles.amount}>{formatAmount(payment.amountValue ?? payment.amount)}</Text>
-          <Text style={styles.meta}>{payment.method ?? "Payment"} - {payment.status ?? "Paid"}</Text>
-          <Text style={styles.meta}>{formatDate(payment.paidAt ?? payment.at)}</Text>
-          {payment.notes ? <Text style={styles.notes}>{payment.notes}</Text> : null}
-        </ForgeCard>
-      ))}
+
+      {!query.isLoading && !query.error && (
+        <FlatList
+          data={query.data ?? []}
+          keyExtractor={(payment) => String(payment.id)}
+          renderItem={({ item: payment }) => (
+            <ForgeCard style={styles.card}>
+              <Text style={styles.amount}>{formatAmount(payment.amountValue ?? payment.amount)}</Text>
+              <Text style={styles.meta}>{payment.method ?? "Payment"} - {payment.status ?? "Paid"}</Text>
+              <Text style={styles.meta}>{formatDate(payment.paidAt ?? payment.at)}</Text>
+              {payment.notes ? <Text style={styles.notes}>{payment.notes}</Text> : null}
+            </ForgeCard>
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              title="No payments yet"
+              message="Membership payments will appear here after staff records them."
+            />
+          }
+          contentContainerStyle={styles.listContent}
+          refreshing={query.isRefetching}
+          onRefresh={() => query.refetch()}
+        />
+      )}
     </ForgeScreen>
   );
 }
@@ -45,5 +60,6 @@ const styles = StyleSheet.create({
   card: { gap: 6 },
   amount: { color: colors.text, fontSize: 24, fontWeight: "900", letterSpacing: 0 },
   meta: { color: colors.muted, fontWeight: "800" },
-  notes: { color: colors.warm, fontWeight: "700", lineHeight: 20 }
+  notes: { color: colors.warm, fontWeight: "700", lineHeight: 20 },
+  listContent: { padding: 20, gap: 16, paddingBottom: 120 }
 });

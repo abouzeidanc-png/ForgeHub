@@ -38,17 +38,65 @@ async function canUseSecureStore(): Promise<boolean> {
 export async function saveTokens(accessToken: string, refreshToken?: string): Promise<void> {
   accessTokenMemory = accessToken;
   refreshTokenMemory = refreshToken ?? null;
-  await clearPersistedAuthTokens();
+
+  const secureAvailable = await canUseSecureStore();
+  if (secureAvailable) {
+    try {
+      await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
+      if (refreshToken) {
+        await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+      } else {
+        await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+      }
+    } catch (error) {
+      console.warn("SecureStore token save failed.", error);
+    }
+  } else {
+    try {
+      await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+      if (refreshToken) {
+        await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      } else {
+        await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+      }
+    } catch (error) {
+      console.warn("AsyncStorage token save failed.", error);
+    }
+  }
 }
 
 export async function getAccessToken(): Promise<string | null> {
-  await clearPersistedAuthTokens();
-  return accessTokenMemory;
+  if (accessTokenMemory) return accessTokenMemory;
+
+  const secureAvailable = await canUseSecureStore();
+  let token: string | null = null;
+  try {
+    token = secureAvailable
+      ? await SecureStore.getItemAsync(ACCESS_TOKEN_KEY)
+      : await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+  } catch (error) {
+    console.warn("Retrieve access token failed.", error);
+  }
+
+  accessTokenMemory = token;
+  return token;
 }
 
 export async function getRefreshToken(): Promise<string | null> {
-  await clearPersistedAuthTokens();
-  return refreshTokenMemory;
+  if (refreshTokenMemory) return refreshTokenMemory;
+
+  const secureAvailable = await canUseSecureStore();
+  let token: string | null = null;
+  try {
+    token = secureAvailable
+      ? await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+      : await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+  } catch (error) {
+    console.warn("Retrieve refresh token failed.", error);
+  }
+
+  refreshTokenMemory = token;
+  return token;
 }
 
 export async function clearTokens(): Promise<void> {

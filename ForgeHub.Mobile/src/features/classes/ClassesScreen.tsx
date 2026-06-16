@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { bookClass, cancelBooking, cancelClassBooking, getBookings, getClasses } from "@/api/classesApi";
 import { ForgeScreen } from "@/components/layout/ForgeScreen";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -27,28 +27,72 @@ export function ClassesScreen({ bookingsOnly = false }: { bookingsOnly?: boolean
       queryClient.invalidateQueries({ queryKey: ["membership"] });
     }
   });
-  const data = bookingsOnly ? bookingsQuery.data?.map((booking) => ({ ...booking, id: booking.classId, bookingId: booking.bookingId ?? booking.id, booked: true })) : classesQuery.data;
+
+  const data = bookingsOnly
+    ? bookingsQuery.data?.map((booking) => ({ ...booking, id: booking.classId, bookingId: booking.bookingId ?? booking.id, booked: true }))
+    : classesQuery.data;
   const loading = bookingsOnly ? bookingsQuery.isLoading : classesQuery.isLoading;
   const error = bookingsOnly ? bookingsQuery.error : classesQuery.error;
+  const refetch = () => {
+    classesQuery.refetch();
+    bookingsQuery.refetch();
+  };
+  const isRefetching = classesQuery.isRefetching || bookingsQuery.isRefetching;
+
   return (
-    <ForgeScreen title={bookingsOnly ? "Bookings" : "Classes"} subtitle={bookingsOnly ? "Your booked sessions" : "Find your next session"} refreshing={classesQuery.isRefetching || bookingsQuery.isRefetching} onRefresh={() => { classesQuery.refetch(); bookingsQuery.refetch(); }}>
+    <ForgeScreen
+      title={bookingsOnly ? "Bookings" : "Classes"}
+      subtitle={bookingsOnly ? "Your booked sessions" : "Find your next session"}
+      scroll={false}
+    >
       {loading ? <LoadingState /> : null}
-      {error ? <ErrorState error={error} onRetry={() => { classesQuery.refetch(); bookingsQuery.refetch(); }} /> : null}
+      {error ? <ErrorState error={error} onRetry={refetch} /> : null}
       {action.error ? <Text style={styles.error}>{parseApiError(action.error).message}</Text> : null}
-      {data?.length === 0 ? <EmptyState title={bookingsOnly ? "No bookings" : "No classes"} message="When the backend returns sessions, they will appear here." /> : null}
-      {data?.map((item) => (
-        <ForgeCard key={bookingsOnly ? `booking-${item.bookingId ?? item.id}-${item.classId ?? item.id}` : `class-${item.id}`} style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.textBlock}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.meta}>{item.coach || "Coach TBA"} - {formatDateTime(item.startAt)}</Text>
-              {item.branchName ? <Text style={styles.meta}>{item.branchName}</Text> : null}
-              <Text style={styles.meta}>{item.availableSpots ?? "N/A"} spots available</Text>
-            </View>
-            <ForgeButton title={item.booked ? "Cancel" : "Book"} variant={item.booked ? "secondary" : "primary"} disabled={action.isPending} onPress={() => action.mutate({ classId: item.id, bookingId: item.bookingId, booked: Boolean(item.booked) })} style={styles.button} />
-          </View>
-        </ForgeCard>
-      ))}
+
+      {!loading && !error && (
+        <FlatList
+          data={data ?? []}
+          keyExtractor={(item) =>
+            bookingsOnly
+              ? `booking-${item.bookingId ?? item.id}-${item.classId ?? item.id}`
+              : `class-${item.id}`
+          }
+          renderItem={({ item }) => (
+            <ForgeCard style={styles.card}>
+              <View style={styles.row}>
+                <View style={styles.textBlock}>
+                  <Text style={styles.title}>{item.title}</Text>
+                  <Text style={styles.meta}>{item.coach || "Coach TBA"} - {formatDateTime(item.startAt)}</Text>
+                  {item.branchName ? <Text style={styles.meta}>{item.branchName}</Text> : null}
+                  <Text style={styles.meta}>{item.availableSpots ?? "N/A"} spots available</Text>
+                </View>
+                <ForgeButton
+                  title={item.booked ? "Cancel" : "Book"}
+                  variant={item.booked ? "secondary" : "primary"}
+                  disabled={action.isPending}
+                  onPress={() =>
+                    action.mutate({
+                      classId: item.id,
+                      bookingId: item.bookingId,
+                      booked: Boolean(item.booked)
+                    })
+                  }
+                  style={styles.button}
+                />
+              </View>
+            </ForgeCard>
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              title={bookingsOnly ? "No bookings" : "No classes"}
+              message="When the backend returns sessions, they will appear here."
+            />
+          }
+          contentContainerStyle={styles.listContent}
+          refreshing={isRefetching}
+          onRefresh={refetch}
+        />
+      )}
     </ForgeScreen>
   );
 }
@@ -60,5 +104,6 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 0 },
   meta: { color: colors.muted, fontWeight: "700", lineHeight: 19 },
   button: { minWidth: 96 },
-  error: { color: colors.danger, fontWeight: "800" }
+  error: { color: colors.danger, fontWeight: "800" },
+  listContent: { padding: 20, gap: 16, paddingBottom: 120 }
 });

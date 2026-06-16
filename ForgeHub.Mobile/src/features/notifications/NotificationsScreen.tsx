@@ -15,14 +15,20 @@ import { formatDateTime } from "@/utils/formatDate";
 export function NotificationsScreen() {
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["notifications"], queryFn: getNotifications });
-  const mutation = useMutation({
-    mutationFn: markNotificationRead,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] })
+  const readMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map((id) => markNotificationRead(id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
   });
 
   useEffect(() => {
     const unread = query.data?.filter((item) => !item.isRead) ?? [];
-    unread.forEach((item) => mutation.mutate(item.id));
+    if (unread.length > 0 && !readMutation.isPending && !readMutation.isSuccess) {
+      readMutation.mutate(unread.map((item) => item.id));
+    }
   }, [query.data]);
 
   return (
@@ -38,7 +44,7 @@ export function NotificationsScreen() {
           </View>
           <Text style={styles.message}>{item.message}</Text>
           <Text style={styles.date}>{formatDateTime(item.createdAt)}</Text>
-          {!item.isRead ? <ForgeButton title="Mark as read" variant="secondary" disabled={mutation.isPending} onPress={() => mutation.mutate(item.id)} /> : null}
+          {!item.isRead ? <ForgeButton title="Mark as read" variant="secondary" disabled={readMutation.isPending} onPress={() => readMutation.mutate([item.id])} /> : null}
         </ForgeCard>
       ))}
     </ForgeScreen>
