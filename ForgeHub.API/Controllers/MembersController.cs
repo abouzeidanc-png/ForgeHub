@@ -461,6 +461,75 @@ public class MembersController : ControllerBase
         return Ok(member);
     }
 
+    [HttpGet("{id:long}/profile")]
+    [Authorize(Roles = AppRoles.AdminOperatorRoles)]
+    public async Task<IActionResult> GetMemberProfile(long id)
+    {
+        var member = await ApplyScope(_context.Members.AsQueryable()).FirstOrDefaultAsync(item => item.Id == id);
+        if (member == null)
+        {
+            return NotFound();
+        }
+
+        var profile = await GetOrCreateProfile(member.Id);
+        return Ok(profile);
+    }
+
+    [HttpPut("{id:long}/assessment")]
+    [Authorize(Roles = AppRoles.AdminOperatorRoles)]
+    public async Task<IActionResult> UpdateAssessment(long id, [FromBody] UpdateMemberAssessmentDto request)
+    {
+        var member = await ApplyScope(_context.Members.AsQueryable()).FirstOrDefaultAsync(item => item.Id == id);
+        if (member == null)
+        {
+            return NotFound();
+        }
+
+        var profile = await GetOrCreateProfile(member.Id);
+        profile.HeightCm = request.HeightCm;
+        profile.WeightKg = request.WeightKg;
+        profile.BodyFatPercentage = request.BodyFatPercentage;
+        profile.WaistCm = request.WaistCm;
+        profile.ChestCm = request.ChestCm;
+        profile.ShoulderCm = request.ShoulderCm;
+        profile.HipCm = request.HipCm;
+        profile.NeckCm = request.NeckCm;
+        profile.ArmCm = request.ArmCm;
+        profile.ThighCm = request.ThighCm;
+        
+        if (!string.IsNullOrWhiteSpace(request.BloodType))
+        {
+            var bloodTypes = new HashSet<string> { "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-" };
+            var bloodType = request.BloodType.Trim().ToUpperInvariant();
+            if (bloodTypes.Contains(bloodType))
+            {
+                profile.BloodType = bloodType;
+            }
+        }
+        
+        profile.UpdatedAt = DateTime.UtcNow;
+        
+        var values = new object?[]
+        {
+            profile.HeightCm, profile.WeightKg, profile.FitnessGoal, profile.TargetWeightKg, profile.BodyFatPercentage,
+            profile.WaistCm, profile.ChestCm, profile.ActivityLevel, profile.TrainingExperience,
+            profile.EmergencyContactName, profile.EmergencyContactPhone, profile.BloodType
+        };
+        profile.ProfileCompletionPercentage = Math.Round(values.Count(item => item != null && !string.IsNullOrWhiteSpace(item.ToString())) / (decimal)values.Length * 100m, 1, MidpointRounding.AwayFromZero);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = _currentUser.UserId == 0 ? null : _currentUser.UserId,
+            Action = "UPDATE_MEMBER_ASSESSMENT",
+            TableName = "member_profiles",
+            RecordId = profile.Id,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(profile);
+    }
+
     private IQueryable<Member> ApplyScope(IQueryable<Member> query)
     {
         if (_currentUser.IsInRole(AppRoles.SuperAdmin))

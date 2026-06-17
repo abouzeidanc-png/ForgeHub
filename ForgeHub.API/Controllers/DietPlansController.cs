@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using ForgeHub.API.Data;
+using ForgeHub.API.DTOs;
 using ForgeHub.API.Models;
+using ForgeHub.API.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -20,16 +22,29 @@ public class DietPlansController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> Get()
+    public async Task<IActionResult> Get([FromQuery] long? memberId)
     {
-        var member = await GetCurrentMember();
-        if (member == null)
+        long targetMemberId;
+        if (User.IsInRole(AppRoles.Member))
         {
-            return NotFound(new { message = "Member not found." });
+            var member = await GetCurrentMember();
+            if (member == null)
+            {
+                return NotFound(new { message = "Member not found." });
+            }
+            targetMemberId = member.Id;
+        }
+        else
+        {
+            if (!memberId.HasValue)
+            {
+                return BadRequest(new { message = "Member ID is required for staff." });
+            }
+            targetMemberId = memberId.Value;
         }
 
         var plans = await _context.DietPlans
-            .Where(dp => dp.MemberId == member.Id)
+            .Where(dp => dp.MemberId == targetMemberId)
             .OrderByDescending(dp => dp.CreatedAt)
             .ToListAsync();
 
@@ -37,17 +52,30 @@ public class DietPlansController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] DietPlan dto)
+    public async Task<IActionResult> Create([FromBody] CreateDietPlanDto dto)
     {
-        var member = await GetCurrentMember();
-        if (member == null)
+        long targetMemberId;
+        if (User.IsInRole(AppRoles.Member))
         {
-            return NotFound(new { message = "Member not found." });
+            var member = await GetCurrentMember();
+            if (member == null)
+            {
+                return NotFound(new { message = "Member not found." });
+            }
+            targetMemberId = member.Id;
+        }
+        else
+        {
+            if (!dto.MemberId.HasValue)
+            {
+                return BadRequest(new { message = "Member ID is required for staff." });
+            }
+            targetMemberId = dto.MemberId.Value;
         }
 
         var plan = new DietPlan
         {
-            MemberId = member.Id,
+            MemberId = targetMemberId,
             Title = dto.Title,
             Description = dto.Description,
             DailyCaloriesTarget = dto.DailyCaloriesTarget,

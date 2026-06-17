@@ -5,11 +5,25 @@ import { ForgeCard } from "@/components/ui/ForgeCard";
 import { colors } from "@/theme/colors";
 
 export function MissingFieldsCard({ fields }: { fields: string[] }) {
-  if (!fields.length) return null;
+  const memberManagedFields = ["heightCm", "weightKg", "dob", "gender", "fitnessGoal", "activityLevel"];
+  const filteredFields = fields.filter(f => memberManagedFields.includes(f));
+  if (!filteredFields.length) return null;
+
+  // Map to friendly names
+  const friendlyNames: Record<string, string> = {
+    heightCm: "Height",
+    weightKg: "Weight",
+    dob: "Date of Birth",
+    gender: "Gender",
+    fitnessGoal: "Fitness Goal",
+    activityLevel: "Activity Level"
+  };
+  const list = filteredFields.map(f => friendlyNames[f] ?? f);
+
   return (
     <ForgeCard style={styles.card}>
       <Text style={styles.title}>Complete profile to improve insights</Text>
-      <Text style={styles.text}>{fields.join(", ")}</Text>
+      <Text style={styles.text}>{list.join(", ")}</Text>
       <ForgeButton title="Update profile" variant="secondary" onPress={() => router.push("/tabs/profile")} />
     </ForgeCard>
   );

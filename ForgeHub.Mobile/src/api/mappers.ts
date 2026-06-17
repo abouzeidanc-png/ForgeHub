@@ -106,7 +106,9 @@ export function mapBranchAccess(json: any): BranchAccess {
     capacityPercentage: asNumber(json?.capacityPercentage, 0),
     status: text(json?.status, "Unknown"),
     canCheckIn: bool(json?.canCheckIn, false),
-    membershipAccess: bool(json?.membershipAccess, false)
+    membershipAccess: bool(json?.membershipAccess, false),
+    lat: json?.lat === undefined || json?.lat === null ? null : asNumber(json.lat),
+    lng: json?.lng === undefined || json?.lng === null ? null : asNumber(json.lng)
   };
 }
 

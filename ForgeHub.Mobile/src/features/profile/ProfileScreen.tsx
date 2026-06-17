@@ -7,6 +7,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { getHomeDashboard } from "@/api/homeApi";
 import { getProfile, getProfileDashboard, removeProfilePhoto, uploadProfilePhoto } from "@/api/profileApi";
 import { logout } from "@/api/authApi";
+import { getWorkoutSessions } from "@/api/workoutsApi";
 import { API_ORIGIN } from "@/config/apiConfig";
 import { useAuthStore } from "@/auth/authStore";
 import { ForgeScreen } from "@/components/layout/ForgeScreen";
@@ -29,8 +30,13 @@ export function ProfileScreen() {
   const profileQuery = useQuery({ queryKey: ["profile"], queryFn: getProfile });
   const homeQuery = useQuery({ queryKey: ["home"], queryFn: getHomeDashboard });
   const dashboardQuery = useQuery({ queryKey: ["profileDashboard"], queryFn: getProfileDashboard });
+  const workoutsQuery = useQuery({ queryKey: ["workouts"], queryFn: getWorkoutSessions });
   const profile = profileQuery.data;
   const dashboard = dashboardQuery.data;
+  const workouts = workoutsQuery.data ?? [];
+  const recentWorkouts = [...workouts]
+    .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
+    .slice(0, 3);
   const dashboardUser = homeQuery.data?.user;
   const membership = homeQuery.data?.membership;
   const persistedPhotoUrl = dashboardUser?.profilePhotoUrl ?? user?.profilePhotoUrl ?? profile?.profilePhotoUrl;
@@ -78,7 +84,7 @@ export function ProfileScreen() {
   };
 
   return (
-    <ForgeScreen title="Profile" subtitle={user?.fullName ?? "Member profile"} refreshing={profileQuery.isRefetching || homeQuery.isRefetching || dashboardQuery.isRefetching} onRefresh={() => { profileQuery.refetch(); homeQuery.refetch(); dashboardQuery.refetch(); }}>
+    <ForgeScreen title="Profile" subtitle={user?.fullName ?? "Member profile"} refreshing={profileQuery.isRefetching || homeQuery.isRefetching || dashboardQuery.isRefetching || workoutsQuery.isRefetching} onRefresh={() => { profileQuery.refetch(); homeQuery.refetch(); dashboardQuery.refetch(); workoutsQuery.refetch(); }}>
       {profileQuery.isLoading ? <LoadingState /> : null}
       {profileQuery.error ? <ErrorState error={profileQuery.error} onRetry={() => profileQuery.refetch()} /> : null}
       <View style={styles.settingsRow}>
@@ -122,6 +128,47 @@ export function ProfileScreen() {
 
       <WeeklyActivityCard activity={dashboard?.weeklyActivity ?? []} averageMinutes={dashboard?.averageTrainingMinutes} />
       {homeQuery.data?.stats ? <TrainingProgressCard stats={homeQuery.data.stats} activity={homeQuery.data.activityHeatmap ?? []} /> : null}
+
+      <ForgeCard style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Workouts</Text>
+        {workoutsQuery.isLoading ? (
+          <Text style={{ color: theme.muted, fontWeight: "700" }}>Loading workouts...</Text>
+        ) : recentWorkouts.length === 0 ? (
+          <Text style={{ color: theme.muted, fontWeight: "700" }}>No workouts logged yet.</Text>
+        ) : (
+          <View style={{ gap: 10 }}>
+            {recentWorkouts.map((workout) => {
+              const formattedDate = (() => {
+                try {
+                  const d = new Date(workout.completedAt);
+                  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+                } catch {
+                  return workout.completedAt;
+                }
+              })();
+              const durationText = (() => {
+                const mins = Math.floor(workout.durationSeconds / 60);
+                const secs = workout.durationSeconds % 60;
+                return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+              })();
+              return (
+                <View key={workout.id} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: theme.surface2, alignItems: "center", justifyContent: "center" }}>
+                      <MaterialCommunityIcons name="dumbbell" color={theme.primary} size={18} />
+                    </View>
+                    <View>
+                      <Text style={{ color: theme.text, fontWeight: "900", fontSize: 14 }}>Workout Session</Text>
+                      <Text style={{ color: theme.muted, fontWeight: "700", fontSize: 12 }}>{formattedDate}</Text>
+                    </View>
+                  </View>
+                  <Text style={{ color: theme.primary, fontWeight: "900", fontSize: 14 }}>{durationText}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ForgeCard>
 
       <ForgeCard style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>Security and settings</Text>

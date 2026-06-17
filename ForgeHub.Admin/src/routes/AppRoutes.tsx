@@ -27,6 +27,7 @@ import { BranchStaffPage } from "../pages/branch-manager/BranchStaffPage";
 import { BranchTrainersPage } from "../pages/branch-manager/BranchTrainersPage";
 import { ManualCheckInPage } from "../pages/staff/ManualCheckInPage";
 import { MemberSearchPage } from "../pages/staff/MemberSearchPage";
+import { MemberAssessmentsPage } from "../pages/staff/MemberAssessmentsPage";
 import { RegisterMemberPage } from "../pages/staff/RegisterMemberPage";
 import { RenewMembershipPage } from "../pages/staff/RenewMembershipPage";
 import { StaffPaymentsPage } from "../pages/staff/StaffPaymentsPage";
@@ -95,6 +96,7 @@ export function AppRoutes() {
           <Route element={<RoleGuard allowed={["Staff"]} />}>
             <Route path="/staff/dashboard" element={<Navigate to="/staff/member-search" replace />} />
             <Route path="/staff/member-search" element={<MemberSearchPage />} />
+            <Route path="/staff/assessments" element={<MemberAssessmentsPage />} />
             <Route path="/staff/register-member" element={<RegisterMemberPage />} />
             <Route path="/staff/renew-membership" element={<RenewMembershipPage />} />
             <Route path="/staff/payments" element={<StaffPaymentsPage />} />

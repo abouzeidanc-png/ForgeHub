@@ -1,33 +1,33 @@
 export const colors = {
-  background: "#0A0A0A",
-  card: "#171717",
-  secondary: "#585757",
-  surface: "#171717",
-  surface2: "#292929",
-  primary: "#FC6A0A",
-  primaryDark: "#E74504",
-  success: "#22C55E",
-  warning: "#F59E0B",
-  danger: "#E74504",
-  text: "#FFFFFF",
-  muted: "#9A9AA5",
-  border: "rgba(252,106,10,0.16)",
-  warm: "#F5ECE4",
-  dark: "#0A0A0A",
-  black: "#0A0A0A",
+  background: "#121318",       // Deep rich obsidian charcoal, soft on eyes
+  card: "#1C1D24",             // Sleek dark grey/blue container
+  surface: "#1C1D24",
+  surface2: "#282A35",          // Highlight container color
+  secondary: "#64748B",
+  primary: "#FF6B00",          // Premium warm energetic orange
+  primaryDark: "#E05E00",
+  success: "#10B981",          // Premium emerald green
+  warning: "#F59E0B",          // Warm amber
+  danger: "#EF4444",           // Rose red
+  text: "#F8FAFC",             // Soft off-white to prevent glare
+  muted: "#94A3B8",            // Slate secondary text
+  border: "rgba(255, 107, 0, 0.15)", // Subtle brand glow border
+  warm: "#E2E8F0",
+  dark: "#121318",
+  black: "#0A0B0D",
   white: "#FFFFFF"
 } as const;
 
 export const lightColors = {
   ...colors,
-  background: "#FFFFFF",
-  card: "#F5F5F5",
-  surface: "#F5F5F5",
-  surface2: "#FFFFFF",
-  text: "#111111",
-  muted: "#585757",
-  border: "#E5E5E5",
-  warm: "#585757",
+  background: "#FAF9F6",       // Premium soft warm alabaster white
+  card: "#FFFFFF",             // Pure white cards for depth
+  surface: "#FFFFFF",
+  surface2: "#F1F3F5",         // Subtle light grey container
+  text: "#1E293B",             // Soft slate dark text, avoiding stark black
+  muted: "#64748B",            // Slate secondary text
+  border: "#E2E8F0",           // Soft border
+  warm: "#475569",
   dark: "#FFFFFF",
-  black: "#111111"
+  black: "#1E293B"
 } as const;

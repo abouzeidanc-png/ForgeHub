@@ -12,4 +12,6 @@ export interface BranchAccess {
   status: string;
   canCheckIn: boolean;
   membershipAccess: boolean;
+  lat?: number | null;
+  lng?: number | null;
 }

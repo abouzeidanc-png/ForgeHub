@@ -170,7 +170,9 @@ public class MemberBranchAccessService : IMemberBranchAccessService
             CapacityPercentage = percentage,
             Status = status,
             MembershipAccess = membershipAccess,
-            CanCheckIn = membershipAccess && isOpenNow
+            CanCheckIn = membershipAccess && isOpenNow,
+            Lat = branch.Lat.HasValue ? (double)branch.Lat.Value : null,
+            Lng = branch.Lng.HasValue ? (double)branch.Lng.Value : null
         };
     }
 

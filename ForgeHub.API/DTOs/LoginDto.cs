@@ -432,3 +432,29 @@ public class MemberBodyInsightsDto
     public decimal? WaterTargetMl { get; set; }
     public List<string> MissingFields { get; set; } = [];
 }
+
+public class UpdateMemberAssessmentDto
+{
+    public decimal? HeightCm { get; set; }
+    public decimal? WeightKg { get; set; }
+    public decimal? BodyFatPercentage { get; set; }
+    public decimal? WaistCm { get; set; }
+    public decimal? ChestCm { get; set; }
+    public decimal? ShoulderCm { get; set; }
+    public decimal? HipCm { get; set; }
+    public decimal? NeckCm { get; set; }
+    public decimal? ArmCm { get; set; }
+    public decimal? ThighCm { get; set; }
+    public string? BloodType { get; set; }
+}
+
+public class CreateDietPlanDto
+{
+    public long? MemberId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int? DailyCaloriesTarget { get; set; }
+    public int? ProteinGrams { get; set; }
+    public int? CarbsGrams { get; set; }
+    public int? FatGrams { get; set; }
+}

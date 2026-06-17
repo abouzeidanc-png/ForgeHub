@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { ForgeButton } from "@/components/ui/ForgeButton";
 import { colors } from "@/theme/colors";
 import { useWorkoutTimerStore, WorkoutTimerMode } from "@/features/timer/useWorkoutTimerStore";
+import { logWorkoutSession } from "@/api/workoutsApi";
 
 const baseActions = [
   { label: "Book Class", icon: "calendar-star", route: "/tabs/classes" },
@@ -49,6 +51,9 @@ function TimerMiniModal({ open, onClose }: { open: boolean; onClose: () => void 
   const remainingMs = timer.getRemainingMs();
   const selectedMode = timer.mode === "countdown" ? "countdown" : "timer";
   const displayMs = selectedMode === "countdown" ? remainingMs : elapsedMs;
+  
+  const queryClient = useQueryClient();
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -71,6 +76,27 @@ function TimerMiniModal({ open, onClose }: { open: boolean; onClose: () => void 
     }
 
     timer.startTimer("timer");
+  };
+
+  const handleLogWorkout = async () => {
+    if (elapsedMs <= 0) return;
+    try {
+      setIsSaving(true);
+      const durationSeconds = Math.floor(elapsedMs / 1000);
+      const completedAt = new Date().toISOString();
+      await logWorkoutSession(durationSeconds, completedAt);
+      timer.resetTimer();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["workouts"] }),
+        queryClient.invalidateQueries({ queryKey: ["profileDashboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["home"] })
+      ]);
+      Alert.alert("Success", "Workout session logged successfully!");
+    } catch (error) {
+      Alert.alert("Error", "Failed to log workout session. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -106,7 +132,10 @@ function TimerMiniModal({ open, onClose }: { open: boolean; onClose: () => void 
             <ForgeButton title={timer.isRunning ? "Pause" : "Start"} onPress={timer.isRunning ? timer.pauseTimer : start} style={styles.flexButton} />
             <ForgeButton title="Reset" variant="secondary" onPress={timer.resetTimer} style={styles.flexButton} />
           </View>
-          {selectedMode === "timer" ? <ForgeButton title="Lap" variant="secondary" disabled={!timer.isRunning} onPress={timer.addLap} /> : null}
+          {selectedMode === "timer" && !timer.isRunning && elapsedMs > 0 ? (
+            <ForgeButton title={isSaving ? "Saving..." : "Log Workout"} disabled={isSaving} onPress={handleLogWorkout} style={{ marginTop: 8 }} />
+          ) : null}
+          {selectedMode === "timer" ? <ForgeButton title="Lap" variant="secondary" disabled={!timer.isRunning} onPress={timer.addLap} style={{ marginTop: 8 }} /> : null}
           {selectedMode === "timer" && timer.laps.length ? (
             <View style={styles.lapList}>
               {timer.laps.slice(0, 5).map((lap, index) => <Text key={`${lap}-${index}`} style={styles.lapText}>Lap {timer.laps.length - index}: {formatDuration(lap)}</Text>)}

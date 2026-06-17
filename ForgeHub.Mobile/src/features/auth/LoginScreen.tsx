@@ -67,6 +67,9 @@ export function LoginScreen() {
         </Pressable>
         <ForgeButton title={formState.isSubmitting ? "Signing in..." : "Sign in"} onPress={onSubmit} disabled={formState.isSubmitting} />
       </ForgeCard>
+      <Text style={[styles.noteText, { color: theme.muted }]}>
+        Credentials are assigned by your gym branch front desk. Change your password in Settings after logging in.
+      </Text>
       <ForgotPasswordModal open={forgotOpen} onClose={() => setForgotOpen(false)} />
     </KeyboardAvoidingView>
   );
@@ -186,5 +189,6 @@ const styles = StyleSheet.create({
   closeHit: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
   closeText: { fontSize: 22, fontWeight: "900" },
   message: { fontWeight: "800", lineHeight: 20 },
-  error: { fontWeight: "800", lineHeight: 20 }
+  error: { fontWeight: "800", lineHeight: 20 },
+  noteText: { fontSize: 13, lineHeight: 18, fontWeight: "700", textAlign: "center", marginTop: 4 }
 });

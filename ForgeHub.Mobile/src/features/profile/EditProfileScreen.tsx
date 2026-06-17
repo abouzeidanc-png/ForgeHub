@@ -18,14 +18,6 @@ const measurementsFields: Array<keyof ProfileFormValues> = [
   "heightCm",
   "weightKg",
   "targetWeightKg",
-  "bodyFatPercentage",
-  "waistCm",
-  "chestCm",
-  "shoulderCm",
-  "hipCm",
-  "neckCm",
-  "armCm",
-  "thighCm",
   "dailyCaloriesTarget",
   "proteinTargetGrams",
   "carbsTargetGrams",
@@ -47,7 +39,6 @@ const preferencesFields: Array<keyof ProfileFormValues> = [
 ];
 
 const healthFields: Array<keyof ProfileFormValues> = [
-  "bloodType",
   "medicalConditions",
   "allergies",
   "injuries",
@@ -78,7 +69,6 @@ function getFieldLabel(name: string): string {
     favoriteWorkoutType: "Favorite Workout Type",
     preferredTrainingDays: "Preferred Training Days",
     preferredWorkoutTime: "Preferred Workout Time",
-    bloodType: "Blood Type",
     medicalConditions: "Medical Conditions",
     allergies: "Allergies",
     injuries: "Injuries",
@@ -100,8 +90,8 @@ function getFieldLabel(name: string): string {
   };
   return custom[name] ?? name.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase());
 }
-const numericFields: Array<keyof ProfileFormValues> = ["heightCm", "weightKg", "targetWeightKg", "bodyFatPercentage", "waistCm", "chestCm", "shoulderCm", "hipCm", "neckCm", "armCm", "thighCm", "dailyCaloriesTarget", "proteinTargetGrams", "carbsTargetGrams", "fatTargetGrams", "waterTargetMl"];
-const textFields: Array<keyof ProfileFormValues> = ["fitnessGoal", "activityLevel", "trainingExperience", "favoriteWorkoutType", "preferredTrainingDays", "preferredWorkoutTime", "bloodType", "medicalConditions", "allergies", "injuries", "medications", "healthNotes", "emergencyContactName", "emergencyContactRelationship", "emergencyContactPhone", "emergencyContactAltPhone", "language", "measurementUnit"];
+const numericFields: Array<keyof ProfileFormValues> = ["heightCm", "weightKg", "targetWeightKg", "dailyCaloriesTarget", "proteinTargetGrams", "carbsTargetGrams", "fatTargetGrams", "waterTargetMl"];
+const textFields: Array<keyof ProfileFormValues> = ["fitnessGoal", "activityLevel", "trainingExperience", "favoriteWorkoutType", "preferredTrainingDays", "preferredWorkoutTime", "medicalConditions", "allergies", "injuries", "medications", "healthNotes", "emergencyContactName", "emergencyContactRelationship", "emergencyContactPhone", "emergencyContactAltPhone", "language", "measurementUnit"];
 
 export function EditProfileScreen() {
   const queryClient = useQueryClient();
@@ -143,7 +133,7 @@ export function EditProfileScreen() {
             style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
           >
             <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab === "measurements" ? "Metrics" : tab === "preferences" ? "Goals" : "Health"}
+              {tab === "measurements" ? "Targets" : tab === "preferences" ? "Goals" : "Health"}
             </Text>
           </TouchableOpacity>
         ))}

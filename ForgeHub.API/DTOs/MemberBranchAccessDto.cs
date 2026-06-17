@@ -15,4 +15,6 @@ public class MemberBranchAccessDto
     public string Status { get; set; } = "Closed";
     public bool CanCheckIn { get; set; }
     public bool MembershipAccess { get; set; }
+    public double? Lat { get; set; }
+    public double? Lng { get; set; }
 }

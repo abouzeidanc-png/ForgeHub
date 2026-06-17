@@ -41,5 +41,7 @@ export const endpoints = {
   profileDashboard: "/member-profile/dashboard",
   insights: "/member-profile/insights",
   history: "/CheckIns",
-  payments: "/member/payments"
+  payments: "/member/payments",
+  dietPlans: "/diet-plans",
+  workouts: "/Workouts"
 } as const;

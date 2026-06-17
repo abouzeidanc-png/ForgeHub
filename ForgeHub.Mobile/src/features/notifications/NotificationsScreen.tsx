@@ -44,7 +44,6 @@ export function NotificationsScreen() {
           </View>
           <Text style={styles.message}>{item.message}</Text>
           <Text style={styles.date}>{formatDateTime(item.createdAt)}</Text>
-          {!item.isRead ? <ForgeButton title="Mark as read" variant="secondary" disabled={readMutation.isPending} onPress={() => readMutation.mutate([item.id])} /> : null}
         </ForgeCard>
       ))}
     </ForgeScreen>

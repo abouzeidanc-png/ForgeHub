@@ -283,20 +283,13 @@ public class MemberProfileController : ControllerBase
         profile.WeightKg = dto.WeightKg;
         profile.FitnessGoal = Trim(dto.FitnessGoal);
         profile.TargetWeightKg = dto.TargetWeightKg;
-        profile.BodyFatPercentage = dto.BodyFatPercentage;
-        profile.WaistCm = dto.WaistCm;
-        profile.ChestCm = dto.ChestCm;
-        profile.ShoulderCm = dto.ShoulderCm;
-        profile.HipCm = dto.HipCm;
-        profile.NeckCm = dto.NeckCm;
-        profile.ArmCm = dto.ArmCm;
-        profile.ThighCm = dto.ThighCm;
+        // BodyFatPercentage and circumferences are trainer-managed / read-only for members.
         profile.ActivityLevel = Trim(dto.ActivityLevel);
         profile.TrainingExperience = Trim(dto.TrainingExperience);
         profile.FavoriteWorkoutType = Trim(dto.FavoriteWorkoutType);
         profile.PreferredTrainingDays = Trim(dto.PreferredTrainingDays);
         profile.PreferredWorkoutTime = Trim(dto.PreferredWorkoutTime);
-        profile.BloodType = Trim(dto.BloodType);
+        // BloodType is trainer-verified / read-only for members.
         profile.MedicalConditions = Trim(dto.MedicalConditions);
         profile.Allergies = Trim(dto.Allergies);
         profile.Injuries = Trim(dto.Injuries);
