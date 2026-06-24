@@ -99,9 +99,27 @@ public class GymsController : ControllerBase
             gym.OwnerUserId = request.OwnerUserId;
             gym.LogoUrl = request.LogoUrl;
             gym.City = request.City;
-            gym.IsActive = request.IsActive;
 
-            await _context.SaveChangesAsync();
+            if (gym.IsActive != request.IsActive)
+            {
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    await CascadeGymStatusUpdateAsync(gym, request.IsActive);
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    return StatusCode(500, new { message = ex.ToDetailedMessage() });
+                }
+            }
+            else
+            {
+                await _context.SaveChangesAsync();
+            }
+
             return Ok(ToGymResponse(gym, await GetOwnerCandidatesAsync(), await GetBranchCountsAsync([gym.Id]), await GetSubscriptionsAsync([gym.Id])));
         }
         catch (Exception ex)
@@ -120,9 +138,50 @@ public class GymsController : ControllerBase
             return NotFound();
         }
 
-        gym.IsActive = request.IsActive;
-        await _context.SaveChangesAsync();
+        if (gym.IsActive != request.IsActive)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                await CascadeGymStatusUpdateAsync(gym, request.IsActive);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { message = ex.ToDetailedMessage() });
+            }
+        }
+
         return Ok(ToGymResponse(gym, await GetOwnerCandidatesAsync(), await GetBranchCountsAsync([gym.Id]), await GetSubscriptionsAsync([gym.Id])));
+    }
+
+    private async Task CascadeGymStatusUpdateAsync(Gym gym, bool isActive)
+    {
+        gym.IsActive = isActive;
+
+        // Cascade update to branches
+        var branches = await _context.Branches
+            .Where(b => b.GymId == gym.Id)
+            .ToListAsync();
+        foreach (var branch in branches)
+        {
+            branch.IsActive = isActive;
+        }
+
+        // Cascade update to owners (Users with GymOwner role linked to the gym)
+        var ownerRoleIds = await _context.Roles
+            .Where(role => role.Name == AppRoles.GymOwner)
+            .Select(role => role.Id)
+            .ToListAsync();
+        var owners = await _context.Users
+            .Where(user => ownerRoleIds.Contains(user.RoleId) && (user.GymId == gym.Id || (gym.OwnerUserId.HasValue && user.Id == gym.OwnerUserId.Value)))
+            .ToListAsync();
+        foreach (var owner in owners)
+        {
+            owner.IsActive = isActive;
+        }
     }
 
     [HttpPost("{id:long}/owners")]
